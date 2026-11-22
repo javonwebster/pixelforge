@@ -142,8 +142,8 @@ return [
     |
     */
 
-    'features' => [
-        Features::resetPasswords(),
-    ],
+    // None. Accounts are seeded and sign-up is closed, and the app sends
+    // no email, so a password reset link could never arrive.
+    'features' => [],
 
 ];
