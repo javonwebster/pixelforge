@@ -56,8 +56,13 @@ class PixelforgeWebhookController extends Controller
                     'received_at' => now(),
                 ]));
             } catch (UniqueConstraintViolationException) {
-                // Seen before: answer 200 so Pixelforge stops retrying. The
-                // log line is the only trace a duplicate leaves.
+                // Seen before: answer 200 so Pixelforge stops retrying, and
+                // count it on the stored event so History can show it.
+                WebhookEvent::query()->where('event_id', $event['id'])->update([
+                    'duplicate_deliveries' => DB::raw('duplicate_deliveries + 1'),
+                    'last_duplicate_at' => now(),
+                ]);
+
                 Log::info('Duplicate Pixelforge webhook ignored.', [
                     'event_id' => $event['id'],
                     'type' => $event['type'],

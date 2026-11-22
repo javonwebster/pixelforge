@@ -38,6 +38,7 @@ class GenerationController extends Controller
             'generations' => fn () => GenerationResource::collection(
                 $user->generations()
                     ->with(['retryOf:id,created_at', 'retry:id,retry_of_id'])
+                    ->withSum('webhookEvents as duplicate_deliveries', 'duplicate_deliveries')
                     ->latest()
                     ->orderByDesc('id')
                     ->paginate(self::PER_PAGE)

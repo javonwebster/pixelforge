@@ -105,6 +105,16 @@ class Generation extends Model
         return $this->hasOne(Generation::class, 'retry_of_id');
     }
 
+    /**
+     * Webhook events Pixelforge sent about this generation.
+     *
+     * @return HasMany<WebhookEvent, $this>
+     */
+    public function webhookEvents(): HasMany
+    {
+        return $this->hasMany(WebhookEvent::class, 'pixelforge_generation_id', 'pixelforge_id');
+    }
+
     /** @return HasMany<LedgerEntry, $this> */
     public function ledgerEntries(): HasMany
     {

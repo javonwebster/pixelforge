@@ -5,6 +5,7 @@ namespace Tests\Feature\Webhooks;
 use App\Enums\GenerationStatus;
 use App\Enums\LedgerType;
 use App\Models\LedgerEntry;
+use App\Models\WebhookEvent;
 use App\Services\LedgerService;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +66,7 @@ class ConcurrentWebhookTest extends TestCase
 
         $this->assertSame(['200', '200'], $statuses);
         $this->assertDatabaseCount('webhook_events', 1);
+        $this->assertSame(1, (int) WebhookEvent::query()->value('duplicate_deliveries'));
         $this->assertSame(1, LedgerEntry::query()->where('generation_id', $generation->id)->where('type', LedgerType::Charge)->count());
     }
 

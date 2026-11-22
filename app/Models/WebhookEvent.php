@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property array<string, mixed> $payload
  * @property CarbonImmutable $received_at
  * @property CarbonImmutable|null $processed_at
+ * @property int $duplicate_deliveries
+ * @property CarbonImmutable|null $last_duplicate_at
  */
 class WebhookEvent extends Model
 {
@@ -30,6 +32,8 @@ class WebhookEvent extends Model
             'delivery_attempt' => 'integer',
             'received_at' => 'datetime',
             'processed_at' => 'datetime',
+            'duplicate_deliveries' => 'integer',
+            'last_duplicate_at' => 'datetime',
         ];
     }
 

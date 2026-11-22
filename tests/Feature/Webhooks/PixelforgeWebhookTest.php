@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
+use Inertia\Testing\AssertableInertia;
 use Tests\Concerns\FakesPixelforge;
 use Tests\TestCase;
 
@@ -85,6 +86,36 @@ class PixelforgeWebhookTest extends TestCase
         $this->assertSame(1, WebhookEvent::query()->count());
         $this->assertSame(self::START - self::SUCCEEDED_PRICE, $this->balance());
         Log::shouldHaveReceived('info')->with('Duplicate Pixelforge webhook ignored.', \Mockery::on(fn (array $context) => $context['event_id'] === $event['id']))->once();
+    }
+
+    public function test_duplicate_deliveries_are_counted_and_shown_in_history(): void
+    {
+        $event = $this->webhookEvent($this->generation, 'succeeded');
+
+        $this->postWebhook($event)->assertJson(['status' => 'applied']);
+        $this->postWebhook($event)->assertJson(['status' => 'duplicate']);
+        $this->postWebhook($event)->assertJson(['status' => 'duplicate']);
+
+        $stored = WebhookEvent::query()->sole();
+        $this->assertSame(2, $stored->duplicate_deliveries);
+        $this->assertNotNull($stored->last_duplicate_at);
+
+        $this->actingAs($this->user)
+            ->get(route('generations.index'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('generations.data.0.status', 'succeeded')
+                ->where('generations.data.0.duplicateDeliveries', 2));
+        $this->assertSame(1, $this->entries($this->generation, LedgerType::Charge));
+    }
+
+    public function test_a_generation_without_duplicates_shows_none(): void
+    {
+        $this->postWebhook($this->webhookEvent($this->generation, 'succeeded'));
+
+        $this->actingAs($this->user)
+            ->get(route('generations.index'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('generations.data.0.duplicateDeliveries', 0));
     }
 
     public function test_two_different_events_with_the_same_result_charge_once(): void

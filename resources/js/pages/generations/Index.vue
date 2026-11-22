@@ -117,7 +117,26 @@ function localTime(iso: string): string {
                         class="flex flex-wrap items-start justify-between gap-2"
                     >
                         <div class="flex flex-col gap-1">
-                            <StatusBadge :generation="generation" />
+                            <div class="flex flex-wrap items-center gap-2">
+                                <StatusBadge :generation="generation" />
+                                <span
+                                    v-if="generation.duplicateDeliveries > 0"
+                                    class="inline-flex w-fit items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-900 dark:bg-blue-950 dark:text-blue-200"
+                                    :title="`Pixelforge sent ${generation.duplicateDeliveries} repeat webhook ${generation.duplicateDeliveries === 1 ? 'delivery' : 'deliveries'}. Each was recognised by its event id and ignored, so this was charged once.`"
+                                    data-test="duplicates"
+                                >
+                                    Duplicate webhook ignored
+                                    <template
+                                        v-if="
+                                            generation.duplicateDeliveries > 1
+                                        "
+                                    >
+                                        &nbsp;×{{
+                                            generation.duplicateDeliveries
+                                        }}
+                                    </template>
+                                </span>
+                            </div>
                             <p
                                 v-if="generation.detail"
                                 class="text-sm text-muted-foreground"

@@ -49,6 +49,8 @@ class GenerationResource extends JsonResource
                 'createdAt' => $generation->retryOf->created_at->toIso8601String(),
             ],
             'retriedAs' => $generation->retry?->id,
+            // Repeat webhook deliveries recognised by event id and ignored.
+            'duplicateDeliveries' => (int) ($generation->getAttribute('duplicate_deliveries') ?? 0),
             'createdAt' => $generation->created_at->toIso8601String(),
         ];
     }
