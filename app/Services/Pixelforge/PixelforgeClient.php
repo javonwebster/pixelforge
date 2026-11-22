@@ -49,6 +49,46 @@ class PixelforgeClient
     }
 
     /**
+     * GET /v1/generations/{id}: the generation as it is now. For polling
+     * generations whose webhooks may not have arrived.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ThrottledLocallyException
+     * @throws PixelforgeApiException
+     * @throws ConnectionException
+     */
+    public function getGeneration(string $pixelforgeId): array
+    {
+        $response = $this->send(fn (PendingRequest $request) => $request->get('generations/'.rawurlencode($pixelforgeId)));
+
+        return $this->generationObject($response);
+    }
+
+    /**
+     * GET /v1/generations: the account's most recent generations, newest
+     * first, each with its metadata. Read-only, so a lookup can never
+     * create anything.
+     *
+     * @return list<array<string, mixed>>
+     *
+     * @throws ThrottledLocallyException
+     * @throws PixelforgeApiException
+     * @throws ConnectionException
+     */
+    public function recentGenerations(int $limit = 100): array
+    {
+        $response = $this->send(fn (PendingRequest $request) => $request->get('generations', ['limit' => $limit]));
+        $data = $response->json('data');
+
+        if (! is_array($data)) {
+            throw new PixelforgeApiException($response->status(), PixelforgeErrorCode::UnexpectedResponse, 'Pixelforge did not return a list.');
+        }
+
+        return array_values(array_filter($data, 'is_array'));
+    }
+
+    /**
      * GET /v1/pricing: current rates and token rules. Needs no
      * authentication, so no key is sent and the throttle isn't involved.
      * The docs don't say whether it counts toward the rate limit;
