@@ -304,6 +304,16 @@ class SubmitGenerationTest extends TestCase
         $this->assertSame(0, $this->generationRequests());
     }
 
+    public function test_gives_up_after_five_minutes_by_default(): void
+    {
+        $this->freezeTime();
+
+        $this->assertEquals(now()->addMinutes(5), (new SubmitGeneration('any'))->retryUntil());
+
+        config(['services.pixelforge.submit_give_up_minutes' => 30]);
+        $this->assertEquals(now()->addMinutes(30), (new SubmitGeneration('any'))->retryUntil());
+    }
+
     public function test_unrecognised_server_error_retries(): void
     {
         $this->given(Http::response('<html>Bad gateway</html>', 502));

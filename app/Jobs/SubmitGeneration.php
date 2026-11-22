@@ -28,10 +28,10 @@ use Throwable;
  * | 422, 401 (our bug or config)         | rejected, hold released, logged      |
  * | 409 idempotency_key_reused           | submission_failed: it EXISTS there   |
  *
- * Gives up after 30 minutes. If the last answer was a clean refusal,
- * Pixelforge created nothing and the row is `rejected`. Otherwise (timeout,
- * no response) it may exist, so the row is `submission_failed` and
- * reconcile keeps looking for it.
+ * Gives up after 5 minutes (PIXELFORGE_SUBMIT_GIVE_UP_MINUTES). If the
+ * last answer was a clean refusal, Pixelforge created nothing and the row
+ * is `rejected`. Otherwise (timeout, no response) it may exist, so the row
+ * is `submission_failed` and reconcile keeps looking for it.
  *
  * The worker runs with --tries=0: retryUntil() alone decides when to stop.
  */
@@ -52,7 +52,7 @@ class SubmitGeneration implements ShouldQueue
 
     public function retryUntil(): DateTimeInterface
     {
-        return now()->addMinutes((int) config('services.pixelforge.submit_give_up_minutes', 30));
+        return now()->addMinutes((int) config('services.pixelforge.submit_give_up_minutes', 5));
     }
 
     public function handle(PixelforgeClient $client, GenerationUpdater $updater): void
