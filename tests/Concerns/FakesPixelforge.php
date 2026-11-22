@@ -10,6 +10,9 @@ use App\Models\User;
 use App\Services\LedgerService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Helpers for tests that talk to a faked Pixelforge. Response bodies follow
@@ -75,7 +78,7 @@ trait FakesPixelforge
     protected function pixelforgeObject(Generation $generation, string $status = 'queued', array $overrides = []): array
     {
         $object = [
-            'id' => 'gen_'.substr(str_replace('-', '', $generation->id), 0, 26),
+            'id' => 'gen_'.str_replace('-', '', $generation->id),
             'object' => 'generation',
             'status' => $status,
             'prompt' => $generation->prompt,
@@ -112,6 +115,57 @@ trait FakesPixelforge
         }
 
         return array_replace($object, $overrides);
+    }
+
+    protected const string WEBHOOK_SECRET = 'whsec_test_secret';
+
+    /**
+     * A webhook event wrapping a generation object, as Pixelforge sends it.
+     *
+     * @param  array<string, mixed>  $overrides  applied to data.object
+     * @return array<string, mixed>
+     */
+    protected function webhookEvent(Generation $generation, string $status, array $overrides = [], ?string $eventId = null): array
+    {
+        return [
+            'id' => $eventId ?? 'evt_'.Str::random(24),
+            'object' => 'event',
+            'type' => 'generation.'.$status,
+            'created_at' => '2026-11-22T14:03:29Z',
+            'data' => ['object' => $this->pixelforgeObject($generation, $status, $overrides)],
+        ];
+    }
+
+    /**
+     * POST a webhook signed the way Pixelforge signs it: HMAC-SHA256 of
+     * "<t>.<raw body>" with the whsec_ secret.
+     *
+     * @param  array<string, mixed>  $event
+     * @return TestResponse<Response>
+     */
+    protected function postWebhook(array $event, ?int $timestamp = null, ?string $secret = null, ?string $body = null): TestResponse
+    {
+        config(['services.pixelforge.webhook_secret' => self::WEBHOOK_SECRET]);
+
+        $body ??= json_encode($event, JSON_THROW_ON_ERROR);
+        $timestamp ??= now()->getTimestamp();
+        $signature = hash_hmac('sha256', $timestamp.'.'.$body, $secret ?? self::WEBHOOK_SECRET);
+
+        return $this->postSignedBody($body, "t={$timestamp},v1={$signature}");
+    }
+
+    /**
+     * @return TestResponse<Response>
+     */
+    protected function postSignedBody(string $body, ?string $signatureHeader): TestResponse
+    {
+        $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_PIXELFORGE_DELIVERY_ATTEMPT' => '1'];
+
+        if ($signatureHeader !== null) {
+            $headers['HTTP_PIXELFORGE_SIGNATURE'] = $signatureHeader;
+        }
+
+        return $this->call('POST', '/webhooks/pixelforge', server: $headers, content: $body);
     }
 
     /**
