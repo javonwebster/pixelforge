@@ -42,7 +42,17 @@ class DatabaseSeeder extends Seeder
         DB::transaction(function () use ($ledger, $name, $email, $password, $isAdmin): void {
             $email = strtolower($email);
 
-            if (User::query()->where('email', $email)->exists()) {
+            // Including deleted accounts: their email still holds the
+            // unique index, and their money history stays.
+            $existing = User::withTrashed()->where('email', $email)->first();
+
+            if ($existing?->trashed()) {
+                $this->command->warn("{$name} account {$email} was deleted; left deleted. Restore it with tinker if needed.");
+
+                return;
+            }
+
+            if ($existing !== null) {
                 $this->command->info("{$name} account {$email} already exists; left unchanged.");
 
                 return;
