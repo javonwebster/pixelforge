@@ -173,7 +173,7 @@ function submit(): void {
                             for="prompt"
                         />
                         <span
-                            class="text-xs tabular-nums"
+                            class="shrink-0 text-xs whitespace-nowrap tabular-nums"
                             :class="
                                 tooLong
                                     ? 'text-red-600'
