@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, usePoll } from '@inertiajs/vue3';
-import { ImageOff, RotateCcw } from '@lucide/vue';
+import { Download, ImageOff, RotateCcw } from '@lucide/vue';
 import { computed, onMounted, watch } from 'vue';
 import Heading from '@/components/Heading.vue';
 import BalancePanel from '@/components/generations/BalancePanel.vue';
@@ -81,13 +81,23 @@ function localTime(iso: string): string {
                 <div
                     class="flex aspect-square w-full max-w-56 items-center justify-center overflow-hidden rounded-lg bg-muted text-muted-foreground sm:max-w-none"
                 >
-                    <img
+                    <!-- Opens the full-size image in a new tab. -->
+                    <a
                         v-if="generation.image?.url"
-                        :src="generation.image.url"
-                        :alt="generation.prompt"
-                        class="size-full object-cover"
-                        loading="lazy"
-                    />
+                        :href="generation.image.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="size-full"
+                        :title="`Open full size: ${generation.prompt}`"
+                        data-test="open-image"
+                    >
+                        <img
+                            :src="generation.image.url"
+                            :alt="generation.prompt"
+                            class="size-full object-cover transition-opacity hover:opacity-90"
+                            loading="lazy"
+                        />
+                    </a>
                     <div
                         v-else-if="generation.image?.expired"
                         class="flex flex-col items-center gap-1 p-2 text-center text-xs"
@@ -180,7 +190,8 @@ function localTime(iso: string): string {
                         v-if="
                             generation.retryOf ||
                             generation.retriedAs ||
-                            generation.failed
+                            generation.failed ||
+                            generation.image?.downloadUrl
                         "
                         class="flex flex-wrap items-center gap-3 text-sm"
                     >
@@ -199,6 +210,20 @@ function localTime(iso: string): string {
                         >
                             See the automatic retry
                         </a>
+                        <!-- A plain link, not Inertia's: the response is a file. -->
+                        <Button
+                            v-if="generation.image?.downloadUrl"
+                            variant="outline"
+                            size="sm"
+                            as-child
+                        >
+                            <a
+                                :href="generation.image.downloadUrl"
+                                data-test="download"
+                            >
+                                <Download /> Download
+                            </a>
+                        </Button>
                         <Button
                             v-if="generation.failed"
                             variant="outline"

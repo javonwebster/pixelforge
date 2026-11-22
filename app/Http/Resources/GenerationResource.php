@@ -104,7 +104,7 @@ class GenerationResource extends JsonResource
      * The image to show: our stored copy if the image job has run, else
      * Pixelforge's URL while it's valid (24 hours), else a placeholder.
      *
-     * @return array{url: string|null, expired: bool}|null
+     * @return array{url: string|null, expired: bool, downloadUrl: string|null}|null
      */
     private static function image(Generation $generation): ?array
     {
@@ -118,6 +118,7 @@ class GenerationResource extends JsonResource
         return [
             'url' => $live ? $generation->image_url : null,
             'expired' => ! $live,
+            'downloadUrl' => $live ? route('generations.download', $generation, absolute: false) : null,
         ];
     }
 

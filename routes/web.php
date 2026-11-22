@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\GenerationController;
+use App\Http\Controllers\GenerationImageController;
 use App\Http\Controllers\QuoteController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +17,10 @@ Route::middleware('auth')->group(function () {
     Route::post('generate/quote', QuoteController::class)->middleware('throttle:120,1')->name('generations.quote');
     Route::post('generations', [GenerationController::class, 'store'])->name('generations.store');
     Route::get('generations', [GenerationController::class, 'index'])->name('generations.index');
+    // whereUuid: a malformed id is a 404, not a Postgres error.
+    Route::get('generations/{generation}/download', [GenerationImageController::class, 'download'])
+        ->whereUuid('generation')
+        ->name('generations.download');
 
     Route::post('credits', [CreditController::class, 'store'])->name('credits.store');
 });

@@ -28,7 +28,11 @@ export type Generation = {
     estimatedPrice: Money;
     maximumPrice: Money;
     actualPrice: Money | null;
-    image: { url: string | null; expired: boolean } | null;
+    image: {
+        url: string | null;
+        expired: boolean;
+        downloadUrl: string | null;
+    } | null;
     retryOf: { id: string; createdAt: string } | null;
     retriedAs: string | null;
     createdAt: string;
