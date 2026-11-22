@@ -49,6 +49,8 @@ The docs' own maximum example (high, 1536×1024, 400 characters, 2 reference ima
 - **Unique (`generation_id`, `type`)** is the database-level guarantee that a generation is held, released and charged at most once each. A check constraint enforces each type's sign.
 - **Submitting** locks the user's row (`SELECT … FOR UPDATE`), checks the available balance against the maximum, then writes the generation and its hold in one transaction. Two simultaneous submits can't both pass the check; a test forks two processes to prove it.
 - **Failed generations are free** because no `charge` row is ever written for them.
+- **Users can read the ledger.** The Credits page lists every entry newest first ("Credits purchased", "Held for a generation", "Hold returned", "Charged for a generation") with the generation it belongs to and the balance after it, filterable by date and amount. The running balance is a window sum over the whole ledger, so it stays true on a filtered page.
+- **Buying credits** (fake: no payment) offers $5, $10, $20 or $50, or any amount from $1 to $500, parsed as an exact decimal string, never a float.
 
 ---
 
@@ -97,7 +99,7 @@ The job gives up after 5 minutes. If the last answer was a clean refusal, nothin
 **Webhooks** ([`PixelforgeWebhookController`](app/Http/Controllers/PixelforgeWebhookController.php)):
 
 - **Signed:** HMAC-SHA256 of `<t>.<raw body>` with the `whsec_` secret, constant-time compare, 5-minute tolerance either way. Anything else gets a `400` and nothing is stored.
-- **Deduped and applied in one transaction:** insert the event (unique `event_id`), apply it, commit. A duplicate hits the unique index and gets a `200` with nothing else done (and a log line). If applying throws, the insert rolls back too and Pixelforge's retry is processed as new. With two separate steps, a crash between them would record the event without applying it, and the retry would be discarded as a duplicate.
+- **Deduped and applied in one transaction:** insert the event (unique `event_id`), apply it, commit. A duplicate hits the unique index and gets a `200` with nothing else applied; it's counted on the stored event and logged, and History shows a blue "Duplicate webhook ignored" badge next to the result. If applying throws, the insert rolls back too and Pixelforge's retry is processed as new. With two separate steps, a crash between them would record the event without applying it, and the retry would be discarded as a duplicate.
 - **Before the POST returns:** a webhook can arrive first, so it's matched by `metadata.local_id`, not only by Pixelforge's id.
 - **Outside the `web` middleware group:** no session, cookies or CSRF.
 
@@ -153,7 +155,7 @@ vendor/bin/pint --test && vendor/bin/phpstan analyse
 npm run check && npm run types:check
 ```
 
-271 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
+295 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
 
 - **Pricing:** the docs' maximum example exactly; the worked examples; half-up rounding through a synthetic rate; an inexact rate throws; Unicode prompts count characters, not bytes.
 - **Webhooks:** valid, wrong secret, tampered body, missing header, stale or future timestamp; the same event twice (one charge); a throw while applying (no event row, so the redelivery is applied); `processing` after `succeeded`; a webhook before the submit response; `internal_error` retried once, never twice, and not by a late duplicate.
@@ -171,7 +173,7 @@ npm run check && npm run types:check
 | `[fail]`       | Failed, "Pixelforge couldn't make an image for this prompt", $0, balance unchanged                       |
 | `[blocked]`    | Failed, "Blocked by content policy", $0                                                                  |
 | `[slow]`       | About 70 s in Processing, updating live, then Succeeded                                                  |
-| `[duplicate]`  | One charge; balance exact to the nanodollar                                                              |
+| `[duplicate]`  | One charge; balance exact to the nanodollar; History marks the ignored repeat deliveries                 |
 | Five at once   | Three running, two "Waiting for a slot", never more than three in flight; all five succeeded             |
 | `[overloaded]` | "Pixelforge is busy, retrying", then Failed at $0 after the 5-minute window                              |
 | Admin report   | Every day's cost matches `GET /v1/usage` for the production key, to the nanodollar                       |
