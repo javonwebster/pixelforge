@@ -153,7 +153,7 @@ vendor/bin/pint --test && vendor/bin/phpstan analyse
 npm run check && npm run types:check
 ```
 
-275 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
+271 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
 
 - **Pricing:** the docs' maximum example exactly; the worked examples; half-up rounding through a synthetic rate; an inexact rate throws; Unicode prompts count characters, not bytes.
 - **Webhooks:** valid, wrong secret, tampered body, missing header, stale or future timestamp; the same event twice (one charge); a throw while applying (no event row, so the redelivery is applied); `processing` after `succeeded`; a webhook before the submit response; `internal_error` retried once, never twice, and not by a late duplicate.
