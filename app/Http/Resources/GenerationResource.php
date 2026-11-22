@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Enums\GenerationStatus;
 use App\Enums\PixelforgeErrorCode;
 use App\Models\Generation;
+use App\Services\Images\StoredImages;
 use App\Support\Nanodollars;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -105,10 +106,12 @@ class GenerationResource extends JsonResource
     }
 
     /**
-     * The image to show: our stored copy if the image job has run, else
-     * Pixelforge's URL while it's valid (24 hours), else a placeholder.
+     * The image to show: our stored copy if the image job has run (it never
+     * expires), else Pixelforge's URL while it's valid (24 hours), else a
+     * placeholder. `url` is for the tile (the thumbnail when we have one),
+     * `fullUrl` for opening it.
      *
-     * @return array{url: string|null, expired: bool, downloadUrl: string|null}|null
+     * @return array{url: string|null, fullUrl: string|null, expired: bool, stored: bool, downloadUrl: string|null}|null
      */
     private static function image(Generation $generation): ?array
     {
@@ -116,12 +119,26 @@ class GenerationResource extends JsonResource
             return null;
         }
 
+        if ($generation->stored_image_path !== null) {
+            $stored = app(StoredImages::class);
+
+            return [
+                'url' => $stored->url($generation->thumbnail_path ?? $generation->stored_image_path),
+                'fullUrl' => $stored->url($generation->stored_image_path),
+                'expired' => false,
+                'stored' => true,
+                'downloadUrl' => route('generations.download', $generation, absolute: false),
+            ];
+        }
+
         $live = $generation->image_url !== null
             && ($generation->image_url_expires_at === null || $generation->image_url_expires_at->isFuture());
 
         return [
             'url' => $live ? $generation->image_url : null,
+            'fullUrl' => $live ? $generation->image_url : null,
             'expired' => ! $live,
+            'stored' => false,
             'downloadUrl' => $live ? route('generations.download', $generation, absolute: false) : null,
         ];
     }

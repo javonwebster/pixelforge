@@ -84,7 +84,7 @@ function localTime(iso: string): string {
                     <!-- Opens the full-size image in a new tab. -->
                     <a
                         v-if="generation.image?.url"
-                        :href="generation.image.url"
+                        :href="generation.image.fullUrl ?? generation.image.url"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="size-full"

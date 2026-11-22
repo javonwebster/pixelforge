@@ -29,8 +29,13 @@ export type Generation = {
     maximumPrice: Money;
     actualPrice: Money | null;
     image: {
+        /** For the tile: our thumbnail when stored, else Pixelforge's link. */
         url: string | null;
+        /** For "open full size". */
+        fullUrl: string | null;
         expired: boolean;
+        /** Our own copy, which never expires. */
+        stored: boolean;
         downloadUrl: string | null;
     } | null;
     retryOf: { id: string; createdAt: string } | null;
