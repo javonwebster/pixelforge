@@ -59,7 +59,7 @@ class StatusLabelTest extends TestCase
             $row = (new GenerationResource($generation))->toArray(request());
 
             $this->assertTrue($row['failed'], $status->value);
-            $this->assertSame('$0.0000', $row['actualPrice']['display'], $status->value);
+            $this->assertSame('$0.00', $row['actualPrice']['display'], $status->value);
         }
     }
 }

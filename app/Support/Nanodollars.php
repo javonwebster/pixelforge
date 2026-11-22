@@ -50,22 +50,26 @@ final class Nanodollars
     }
 
     /**
-     * Dollar figure for users, e.g. "$0.0866". Display only: rounds half
-     * up to $decimals places. Stored amounts are never rounded.
+     * Dollar figure for display, e.g. "$0.09". Users see whole cents; the
+     * exact nine-decimal figure is in present()'s `exact` for a hover.
+     *
+     * Display only: stored amounts and every calculation stay exact.
+     * Rounds half up by default; pass Ceiling or Floor where a rounded
+     * figure must not mislead (see InsufficientBalanceException).
      *
      * @param  int<0, 9>  $decimals
      */
-    public static function format(int $nanos, int $decimals = 4): string
+    public static function format(int $nanos, int $decimals = 2, RoundingMode $rounding = RoundingMode::HalfUp): string
     {
-        $amount = BigDecimal::ofUnscaledValue(abs($nanos), self::SCALE)
-            ->toScale($decimals, RoundingMode::HalfUp)
-            ->toString();
+        // Rounded with its sign, so Floor and Ceiling go the right way for
+        // negative balances too.
+        $amount = BigDecimal::ofUnscaledValue($nanos, self::SCALE)->toScale($decimals, $rounding);
 
-        return ($nanos < 0 ? '-$' : '$').$amount;
+        return ($amount->isNegative() ? '-$' : '$').$amount->abs()->toString();
     }
 
     /**
-     * An amount as the UI needs it: the 4-decimal figure users see, and
+     * An amount as the UI needs it: the whole-cent figure users see, and
      * the exact one for a hover title.
      *
      * @return array{nanos: int, display: string, exact: string}

@@ -59,7 +59,7 @@ class CreateGenerationTest extends TestCase
             $this->submitGeneration($user);
             $this->fail('Expected InsufficientBalanceException.');
         } catch (InsufficientBalanceException $e) {
-            $this->assertSame('This needs up to $0.0866. Your balance is $0.0500. Buy credits to continue.', $e->getMessage());
+            $this->assertSame('This needs up to $0.09. Your balance is $0.05. Buy credits to continue.', $e->getMessage());
             $this->assertSame(self::MAX_PRICE, $e->requiredNanos);
             $this->assertSame(50_000_000, $e->availableNanos);
         }

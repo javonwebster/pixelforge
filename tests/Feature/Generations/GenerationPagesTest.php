@@ -49,8 +49,8 @@ class GenerationPagesTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('generations/Create')
-                ->where('balance.available.display', '$5.0000')
-                ->where('balance.held.display', '$0.0000')
+                ->where('balance.available.display', '$5.00')
+                ->where('balance.held.display', '$0.00')
                 ->where('sizes', ['1024x1024', '1536x1024', '1024x1536'])
                 ->where('qualities', ['low', 'medium', 'high'])
                 ->where('prefill.size', '1024x1024')
@@ -115,7 +115,7 @@ class GenerationPagesTest extends TestCase
 
         $this->actingAs($poor)
             ->post(route('generations.store'), $this->validInput())
-            ->assertSessionHasErrors(['balance' => 'This needs up to $0.0866. Your balance is $0.0500. Buy credits to continue.']);
+            ->assertSessionHasErrors(['balance' => 'This needs up to $0.09. Your balance is $0.05. Buy credits to continue.']);
 
         $this->assertDatabaseCount('generations', 0);
         Queue::assertNothingPushed();
@@ -179,10 +179,11 @@ class GenerationPagesTest extends TestCase
             ->postJson(route('generations.quote'), $this->validInput())
             ->assertOk()
             ->assertExactJson([
-                'estimate' => ['nanos' => 72_500_000, 'display' => '$0.0725', 'exact' => '$0.072500000'],
-                'maximum' => ['nanos' => 86_612_500, 'display' => '$0.0866', 'exact' => '$0.086612500'],
-                'available' => ['nanos' => self::START, 'display' => '$5.0000', 'exact' => '$5.000000000'],
+                'estimate' => ['nanos' => 72_500_000, 'display' => '$0.07', 'exact' => '$0.072500000'],
+                'maximum' => ['nanos' => 86_612_500, 'display' => '$0.09', 'exact' => '$0.086612500'],
+                'available' => ['nanos' => self::START, 'display' => '$5.00', 'exact' => '$5.000000000'],
                 'enough' => true,
+                'shortfallMessage' => null,
             ]);
     }
 
@@ -198,7 +199,18 @@ class GenerationPagesTest extends TestCase
     {
         $this->actingAs($this->userWithCredit(50_000_000))
             ->postJson(route('generations.quote'), $this->validInput())
-            ->assertJsonPath('enough', false);
+            ->assertJsonPath('enough', false)
+            // Word for word what the submit refuses with.
+            ->assertJsonPath('shortfallMessage', 'This needs up to $0.09. Your balance is $0.05. Buy credits to continue.');
+    }
+
+    public function test_shortfall_message_never_shows_the_same_amount_twice(): void
+    {
+        // $0.086 available, $0.0866125 needed: both round to $0.09, so the
+        // message rounds what's needed up and what's available down.
+        $this->actingAs($this->userWithCredit(86_000_000))
+            ->postJson(route('generations.quote'), $this->validInput())
+            ->assertJsonPath('shortfallMessage', 'This needs up to $0.09. Your balance is $0.08. Buy credits to continue.');
     }
 
     public function test_quote_counts_reference_images(): void
@@ -227,7 +239,7 @@ class GenerationPagesTest extends TestCase
                 ->where('generations.data.1.id', $older->id)
                 ->where('generations.data.0.label', 'Waiting for a slot')
                 ->where('generations.data.0.finished', false)
-                ->where('generations.data.0.estimatedPrice.display', '$0.0725')
+                ->where('generations.data.0.estimatedPrice.display', '$0.07')
                 ->where('generations.data.0.actualPrice', null)
                 ->has('balance.available'));
     }
@@ -266,7 +278,8 @@ class GenerationPagesTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('generations.data.0.image.url', null)
                 ->where('generations.data.0.image.expired', true)
-                ->where('generations.data.0.actualPrice.display', '$0.0738'));
+                ->where('generations.data.0.actualPrice.display', '$0.07')
+                ->where('generations.data.0.actualPrice.exact', '$0.073825000'));
     }
 
     public function test_a_live_image_is_shown(): void

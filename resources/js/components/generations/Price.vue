@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Money } from '@/types';
 
-// Users see 4 decimals; hovering shows the exact nanodollar figure.
+// Users see whole cents; hovering shows the exact nanodollar figure.
 defineProps<{ money: Money }>();
 </script>
 

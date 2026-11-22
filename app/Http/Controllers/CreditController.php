@@ -31,7 +31,7 @@ class CreditController extends Controller
         $nanos = (int) $validated['amount'] * Nanodollars::PER_USD;
         $ledger->purchase($user, $nanos);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => 'Added '.Nanodollars::format($nanos, 2).' of credit.']);
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Added '.Nanodollars::format($nanos).' of credit.']);
 
         return back();
     }

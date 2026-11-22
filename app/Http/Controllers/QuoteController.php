@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Http\Requests\QuoteRequest;
 use App\Models\User;
 use App\Services\LedgerService;
@@ -29,12 +30,15 @@ class QuoteController extends Controller
             $catalog->currentRates(),
         );
         $available = $ledger->available($user);
+        $enough = $available >= $quote->maximumPrice;
 
         return response()->json([
             'estimate' => Nanodollars::present($quote->estimatedPrice),
             'maximum' => Nanodollars::present($quote->maximumPrice),
             'available' => Nanodollars::present($available),
-            'enough' => $available >= $quote->maximumPrice,
+            'enough' => $enough,
+            // The same words the submit would refuse with, made in one place.
+            'shortfallMessage' => $enough ? null : (new InsufficientBalanceException($quote->maximumPrice, $available))->getMessage(),
         ]);
     }
 }

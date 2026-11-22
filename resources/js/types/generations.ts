@@ -1,7 +1,7 @@
 /** An amount from the server: nanodollars plus the two ways to show it. */
 export type Money = {
     nanos: number;
-    /** 4 decimals, what users see: "$0.0725" */
+    /** Whole cents, what users see: "$0.07" */
     display: string;
     /** All 9 decimals, for a hover title: "$0.072500000" */
     exact: string;
@@ -54,4 +54,6 @@ export type Quote = {
     maximum: Money;
     available: Money;
     enough: boolean;
+    /** Set when the balance can't cover the maximum; the submit's own words. */
+    shortfallMessage: string | null;
 };

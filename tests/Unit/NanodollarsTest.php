@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Support\Nanodollars;
+use Brick\Math\RoundingMode;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -59,15 +60,32 @@ class NanodollarsTest extends TestCase
         $this->assertSame('0.373875000', Nanodollars::toUsd(Nanodollars::fromUsd('0.373875000')));
     }
 
-    public function test_user_display_shows_four_decimals(): void
+    public function test_users_see_whole_cents(): void
     {
-        // The spec's examples: "up to $0.0866", "your balance is $0.0500".
-        $this->assertSame('$0.0866', Nanodollars::format(86_612_500));
-        $this->assertSame('$0.0725', Nanodollars::format(72_500_000));
-        $this->assertSame('$0.0500', Nanodollars::format(50_000_000));
-        $this->assertSame('$5.0000', Nanodollars::format(5_000_000_000));
-        $this->assertSame('-$0.0100', Nanodollars::format(-10_000_000));
-        $this->assertSame('$0.0001', Nanodollars::format(50_000));    // half up, display only
+        $this->assertSame('$0.09', Nanodollars::format(86_612_500));
+        $this->assertSame('$0.07', Nanodollars::format(72_500_000));
+        $this->assertSame('$0.05', Nanodollars::format(50_000_000));
+        $this->assertSame('$5.00', Nanodollars::format(5_000_000_000));
+        $this->assertSame('-$0.01', Nanodollars::format(-10_000_000));
+        $this->assertSame('$0.01', Nanodollars::format(5_000_000));    // half a cent rounds up
+        $this->assertSame('$0.00', Nanodollars::format(4_999_999));
         $this->assertSame('$0.46734375', Nanodollars::format(467_343_750, 8));
+    }
+
+    public function test_rounding_direction_can_be_chosen(): void
+    {
+        $this->assertSame('$0.09', Nanodollars::format(80_000_001, rounding: RoundingMode::Ceiling));
+        $this->assertSame('$0.08', Nanodollars::format(89_999_999, rounding: RoundingMode::Floor));
+        // Signed rounding: a floor of a tiny debt is a whole cent of debt.
+        $this->assertSame('-$0.01', Nanodollars::format(-1, rounding: RoundingMode::Floor));
+        $this->assertSame('$0.00', Nanodollars::format(-1, rounding: RoundingMode::Ceiling));
+    }
+
+    public function test_present_gives_whole_cents_and_the_exact_figure(): void
+    {
+        $this->assertSame(
+            ['nanos' => 86_612_500, 'display' => '$0.09', 'exact' => '$0.086612500'],
+            Nanodollars::present(86_612_500),
+        );
     }
 }
