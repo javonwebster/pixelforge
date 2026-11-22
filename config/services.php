@@ -43,6 +43,9 @@ return [
         'base_url' => env('PIXELFORGE_BASE_URL', 'https://pixelforge.promptedit.dev/v1'),
         'key' => env('PIXELFORGE_API_KEY'),
         'webhook_secret' => env('PIXELFORGE_WEBHOOK_SECRET'),
+        // How long the submit job keeps retrying before giving up. Shorten
+        // it locally to watch [overloaded] fail.
+        'submit_give_up_minutes' => (int) env('PIXELFORGE_SUBMIT_GIVE_UP_MINUTES', 30),
     ],
 
 ];
