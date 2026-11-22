@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Actions\CreateGeneration;
 use App\Enums\GenerationStatus;
 use App\Enums\PixelforgeErrorCode;
+use App\Exceptions\InsufficientBalanceException;
 use App\Models\Generation;
+use App\Models\User;
 use App\Services\Pricing\PricingCalculator;
 use App\Services\Pricing\Rates;
 use App\Services\Pricing\TokenCounts;
@@ -32,6 +35,7 @@ class GenerationUpdater
     public function __construct(
         private readonly LedgerService $ledger,
         private readonly PricingCalculator $calculator,
+        private readonly CreateGeneration $createGeneration,
     ) {}
 
     /**
@@ -67,8 +71,11 @@ class GenerationUpdater
                 };
             }
 
+            // touch(), not save(): it writes even when nothing else changed,
+            // so a poll with no news still counts as fresh and reconcile
+            // moves on to other generations.
             $generation->last_synced_at = now();
-            $generation->save();
+            $generation->touch();
 
             return $generation;
         });
@@ -246,6 +253,48 @@ class GenerationUpdater
         $generation->charge_nanos = 0;
 
         $this->ledger->release($generation);
+
+        if ($generation->error_code === PixelforgeErrorCode::InternalError->value && $generation->retry_of_id === null) {
+            $this->retryAutomatically($generation);
+        }
+    }
+
+    /**
+     * Pixelforge says `internal_error` is on its side and usually fixed by
+     * retrying, and failed generations are never billed, so one automatic
+     * retry can't double-charge. `generation_failed` is never retried: the
+     * same prompt would fail again.
+     *
+     * The retry is a NEW row linked by retry_of_id, with its own hold and
+     * its own Idempotency-Key. Reusing the failed row would let a late
+     * duplicate webhook from the first attempt (matched by local_id) fail
+     * the retry. Runs in this transaction, under the failed row's lock, so
+     * a duplicate failed event can't start a second retry; a partial
+     * unique index on retry_of_id backs that up.
+     */
+    private function retryAutomatically(Generation $failed): void
+    {
+        // Deleted accounts don't get new generations.
+        $user = User::query()->find($failed->user_id);
+
+        if ($user === null) {
+            return;
+        }
+
+        try {
+            $this->createGeneration->handle(
+                $user,
+                $failed->prompt,
+                $failed->size,
+                $failed->quality,
+                $failed->reference_images,
+                retryOf: $failed,
+                rates: $failed->rates !== null ? Rates::fromArray($failed->rates) : null,
+            );
+        } catch (InsufficientBalanceException) {
+            // No retry; the failed row shows "Try again" as usual.
+            Log::info('No automatic retry: balance too low.', ['generation' => $failed->id]);
+        }
     }
 
     /** Pixelforge timestamps are ISO 8601 in UTC; stored as such. */

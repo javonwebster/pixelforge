@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\LedgerService;
 use App\Services\Pricing\PricingCalculator;
 use App\Services\Pricing\PricingCatalog;
+use App\Services\Pricing\Rates;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -19,7 +20,9 @@ use Illuminate\Support\Facades\DB;
  * and queue the call to Pixelforge. The page never waits on Pixelforge.
  *
  * Also used by the automatic retry of `internal_error`, which passes the
- * original as $retryOf and runs inside the updater's transaction.
+ * original as $retryOf and runs inside the updater's transaction. It also
+ * passes the original's rates, so no pricing call is made while that
+ * transaction holds the generation's row lock.
  */
 class CreateGeneration
 {
@@ -41,10 +44,12 @@ class CreateGeneration
         Quality $quality,
         array $referenceImages = [],
         ?Generation $retryOf = null,
+        ?Rates $rates = null,
     ): Generation {
         // Priced before the transaction: fetching rates can mean an HTTP
         // call, which shouldn't happen while holding the user's row lock.
-        $quote = $this->calculator->quote($prompt, $size, $quality, count($referenceImages), $this->catalog->currentRates());
+        $rates ??= $this->catalog->currentRates();
+        $quote = $this->calculator->quote($prompt, $size, $quality, count($referenceImages), $rates);
 
         return DB::transaction(function () use ($user, $prompt, $size, $quality, $referenceImages, $retryOf, $quote) {
             // Lock the user's row so two submits at once can't both pass
