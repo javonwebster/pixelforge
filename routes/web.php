@@ -23,6 +23,7 @@ Route::middleware('auth')->group(function () {
         ->whereUuid('generation')
         ->name('generations.download');
 
+    Route::get('credits', [CreditController::class, 'index'])->name('credits.index');
     Route::post('credits', [CreditController::class, 'store'])->name('credits.store');
 
     Route::get('admin/report', AdminReportController::class)

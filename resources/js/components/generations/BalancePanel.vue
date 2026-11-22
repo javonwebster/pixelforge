@@ -1,25 +1,15 @@
 <script setup lang="ts">
-import { useForm } from '@inertiajs/vue3';
-import CreditController from '@/actions/App/Http/Controllers/CreditController';
+import { Link } from '@inertiajs/vue3';
+import BuyCreditsDialog from '@/components/generations/BuyCreditsDialog.vue';
 import Price from '@/components/generations/Price.vue';
 import { Button } from '@/components/ui/button';
+import { index as creditsIndex } from '@/routes/credits';
 import type { Balance } from '@/types';
 
-defineProps<{ balance: Balance }>();
-
-const amounts = [5, 10, 20];
-const form = useForm({ amount: 0 });
-
-function buy(amount: number): void {
-    // The buttons are disabled while a purchase is in flight, but a fast
-    // double click can land before Vue re-renders, so check here too.
-    if (form.processing) {
-        return;
-    }
-
-    form.amount = amount;
-    form.submit(CreditController.store(), { preserveScroll: true });
-}
+// Vue treats a missing boolean prop as false, so default it explicitly.
+withDefaults(defineProps<{ balance: Balance; showHistoryLink?: boolean }>(), {
+    showHistoryLink: true,
+});
 </script>
 
 <template>
@@ -48,18 +38,10 @@ function buy(amount: number): void {
         </dl>
 
         <div class="flex items-center gap-2">
-            <span class="text-sm text-muted-foreground">Buy credits</span>
-            <Button
-                v-for="amount in amounts"
-                :key="amount"
-                variant="outline"
-                size="sm"
-                :disabled="form.processing"
-                :data-test="`buy-${amount}`"
-                @click="buy(amount)"
-            >
-                ${{ amount }}
+            <Button v-if="showHistoryLink" variant="ghost" size="sm" as-child>
+                <Link :href="creditsIndex()">Transaction history</Link>
             </Button>
+            <BuyCreditsDialog :balance="balance" />
         </div>
     </section>
 </template>

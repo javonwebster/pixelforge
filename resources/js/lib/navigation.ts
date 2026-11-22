@@ -4,8 +4,10 @@ import {
     FolderGit2,
     History,
     Sparkles,
+    Wallet,
 } from '@lucide/vue';
 import { report } from '@/routes/admin';
+import { index as creditsIndex } from '@/routes/credits';
 import { create, index } from '@/routes/generations';
 import type { NavItem } from '@/types';
 
@@ -13,6 +15,7 @@ import type { NavItem } from '@/types';
 export const mainNavItems: NavItem[] = [
     { title: 'Generate', href: create(), icon: Sparkles },
     { title: 'History', href: index(), icon: History },
+    { title: 'Credits', href: creditsIndex(), icon: Wallet },
 ];
 
 // Only shown to admins; the route itself also refuses everyone else.

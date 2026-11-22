@@ -40,6 +40,8 @@ export type Generation = {
     } | null;
     retryOf: { id: string; createdAt: string } | null;
     retriedAs: string | null;
+    /** Repeat webhook deliveries recognised by event id and ignored. */
+    duplicateDeliveries: number;
     createdAt: string;
 };
 
@@ -90,4 +92,27 @@ export type Report = {
         matches: boolean | null;
     };
     pixelforgeError: string | null;
+};
+
+/** One ledger entry on the Credits page (App\Services\LedgerHistory). */
+export type LedgerRow = {
+    id: number;
+    type: 'purchase' | 'hold' | 'release' | 'charge';
+    label: string;
+    generationId: string | null;
+    prompt: string | null;
+    /** Signed: "+$5.00", "-$0.07". */
+    amount: Money;
+    balanceAfter: Money;
+    createdAt: string;
+};
+
+/** A plain Laravel paginator, as Inertia serialises it. */
+export type Page<T> = {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    total: number;
+    prev_page_url: string | null;
+    next_page_url: string | null;
 };
