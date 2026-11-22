@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\GenerationStatus;
+use App\Jobs\ProcessGeneratedImage;
 use App\Models\Generation;
 use App\Models\WebhookEvent;
 use App\Services\GenerationUpdater;
@@ -25,6 +26,9 @@ use Illuminate\Support\Facades\Log;
  * 3. Looks for `submission_failed` generations from the last 24 hours in
  *    one GET /v1/generations call, matching metadata.local_id. Read-only,
  *    so it can't create anything; if one turns up succeeded, it's billed.
+ * 4. Queues an image copy for succeeded generations still missing one
+ *    while Pixelforge's link is valid (no API calls; the job is unique per
+ *    generation, so this never piles up).
  *
  * Everything goes through GenerationUpdater, the same path as webhooks, so
  * a poll and a webhook for the same result can't charge twice. Polls are
@@ -47,6 +51,7 @@ class ReconcileGenerations extends Command
     public function handle(PixelforgeClient $client, GenerationUpdater $updater): int
     {
         $events = $this->reprocessUnmatchedEvents($updater);
+        $images = $this->queueMissingImageCopies();
 
         try {
             $polled = $this->pollStale($client, $updater);
@@ -57,7 +62,7 @@ class ReconcileGenerations extends Command
             return self::SUCCESS;
         }
 
-        $this->info("Reconciled: {$events} webhook event(s) applied, {$polled} generation(s) polled, {$found} unclear submit(s) found.");
+        $this->info("Reconciled: {$events} webhook event(s) applied, {$polled} generation(s) polled, {$found} unclear submit(s) found, {$images} image copy(ies) queued.");
 
         return self::SUCCESS;
     }
@@ -89,6 +94,27 @@ class ReconcileGenerations extends Command
         }
 
         return $applied;
+    }
+
+    private function queueMissingImageCopies(): int
+    {
+        $ids = Generation::query()
+            ->where('status', GenerationStatus::Succeeded)
+            ->whereNull('stored_image_path')
+            ->whereNotNull('image_url')
+            // Leave the job queued on success a couple of minutes first,
+            // and don't bother with links about to expire.
+            ->where('completed_at', '<=', now()->subMinutes(2))
+            ->where('image_url_expires_at', '>', now()->addMinutes(5))
+            ->orderBy('completed_at')
+            ->limit(self::MAX_POLLS)
+            ->pluck('id');
+
+        foreach ($ids as $id) {
+            ProcessGeneratedImage::dispatch($id);
+        }
+
+        return $ids->count();
     }
 
     private function pollStale(PixelforgeClient $client, GenerationUpdater $updater): int

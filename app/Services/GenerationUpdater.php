@@ -6,6 +6,7 @@ use App\Actions\CreateGeneration;
 use App\Enums\GenerationStatus;
 use App\Enums\PixelforgeErrorCode;
 use App\Exceptions\InsufficientBalanceException;
+use App\Jobs\ProcessGeneratedImage;
 use App\Models\Generation;
 use App\Models\User;
 use App\Services\Pricing\PricingCalculator;
@@ -237,6 +238,10 @@ class GenerationUpdater
 
         $this->ledger->release($generation);
         $this->ledger->charge($generation, $price);
+
+        // Copy the image before Pixelforge's link expires. After commit:
+        // the money is settled first, and the copy can never undo it.
+        ProcessGeneratedImage::dispatch($generation->id)->afterCommit();
     }
 
     /**

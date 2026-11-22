@@ -73,6 +73,14 @@ jobs:
           node-version: '22'
           cache: npm
 
+      # The image conversion test runs the real ffmpeg, as the queue
+      # worker does; locally it skips when ffmpeg isn't installed.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -encoders | grep -q libwebp
+
       - name: Install dependencies
         run: |
           composer install --prefer-dist --no-interaction --no-progress
