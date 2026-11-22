@@ -80,6 +80,10 @@ class GenerationResource extends JsonResource
             GenerationStatus::Rejected => match ($code) {
                 PixelforgeErrorCode::ContentPolicyViolation => 'Blocked by content policy',
                 PixelforgeErrorCode::DailyLimitExceeded => 'Daily limit reached',
+                // Gave up after the retry window, every answer a refusal.
+                PixelforgeErrorCode::Overloaded,
+                PixelforgeErrorCode::RateLimitExceeded,
+                PixelforgeErrorCode::ConcurrencyLimitExceeded => 'Pixelforge was too busy. Try again in a few minutes.',
                 default => 'Something went wrong',
             },
             GenerationStatus::SubmissionFailed => "Couldn't reach Pixelforge",

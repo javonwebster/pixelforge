@@ -34,7 +34,8 @@ class StatusLabelTest extends TestCase
             'rejected: content policy' => [GenerationStatus::Rejected, null, 'content_policy_violation', 'Failed', 'Blocked by content policy'],
             'rejected: daily limit' => [GenerationStatus::Rejected, null, 'daily_limit_exceeded', 'Failed', 'Daily limit reached'],
             'rejected: our bug' => [GenerationStatus::Rejected, null, 'validation_failed', 'Failed', 'Something went wrong'],
-            'rejected: gave up on overloads' => [GenerationStatus::Rejected, null, 'overloaded', 'Failed', 'Something went wrong'],
+            'rejected: gave up on overloads' => [GenerationStatus::Rejected, null, 'overloaded', 'Failed', 'Pixelforge was too busy. Try again in a few minutes.'],
+            'rejected: gave up waiting for a slot' => [GenerationStatus::Rejected, null, 'concurrency_limit_exceeded', 'Failed', 'Pixelforge was too busy. Try again in a few minutes.'],
             'submission_failed' => [GenerationStatus::SubmissionFailed, null, 'connection_error', 'Failed', "Couldn't reach Pixelforge"],
         ];
     }
