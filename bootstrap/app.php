@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Only Caddy can reach pf-web (no published ports), so its
+        // X-Forwarded-* headers are trustworthy: real client IPs for the
+        // login throttle, https:// URLs behind TLS termination.
+        $middleware->trustProxies(at: '*');
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->web(append: [
