@@ -89,6 +89,31 @@ class PixelforgeClient
     }
 
     /**
+     * GET /v1/usage: what Pixelforge billed this API key per UTC day, both
+     * dates inclusive, at most 92 days. Zero days are included.
+     *
+     * @return list<array<string, mixed>> the `data` days
+     *
+     * @throws ThrottledLocallyException
+     * @throws PixelforgeApiException
+     * @throws ConnectionException
+     */
+    public function usage(string $startDate, string $endDate): array
+    {
+        $response = $this->send(fn (PendingRequest $request) => $request->get('usage', [
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ]));
+        $data = $response->json('data');
+
+        if (! is_array($data)) {
+            throw new PixelforgeApiException($response->status(), PixelforgeErrorCode::UnexpectedResponse, 'Pixelforge did not return usage days.');
+        }
+
+        return array_values(array_filter($data, 'is_array'));
+    }
+
+    /**
      * GET /v1/pricing: current rates and token rules. Needs no
      * authentication, so no key is sent and the throttle isn't involved.
      * The docs don't say whether it counts toward the rate limit;

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\GenerationController;
 use App\Http\Controllers\GenerationImageController;
@@ -23,6 +24,10 @@ Route::middleware('auth')->group(function () {
         ->name('generations.download');
 
     Route::post('credits', [CreditController::class, 'store'])->name('credits.store');
+
+    Route::get('admin/report', AdminReportController::class)
+        ->middleware('can:view-admin-report')
+        ->name('admin.report');
 });
 
 require __DIR__.'/settings.php';
