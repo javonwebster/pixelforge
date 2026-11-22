@@ -113,6 +113,8 @@ The job gives up after 5 minutes. If the last answer was a clean refusal, nothin
 
 **Admin report** ([`/admin/report`](app/Services/AdminReport.php), admins only). For each UTC day and user: generations, credit spend, provider cost and profit, exact to nine decimals. Pixelforge's own `GET /v1/usage` cost sits beside ours, with a match marker per day and for the range. Generations count on the UTC day of Pixelforge's `completed_at`, which is how `/v1/usage` bills, so one submitted at 23:59 and finished at 00:01 lands on the second day. Days only Pixelforge billed still show, as mismatches. Up to 92 days per range, Pixelforge's limit; usage is cached for a minute because the call counts against the rate limit.
 
+**Image copies** ([`ProcessGeneratedImage`](app/Jobs/ProcessGeneratedImage.php)). Pixelforge's image links stop working 24 hours after completion, so after a success commits, a queue job downloads the PNG (only from Pixelforge's host), converts it with ffmpeg to a full-size WebP and a 384px thumbnail, and stores both in a private S3 bucket (`us-east-2`). History and downloads then use our copy through 10-minute signed links, cached for 8 minutes so the 3-second poll doesn't re-download images. The job never touches money, is unique per generation, and retries on failure; reconcile re-queues any succeeded generation still missing a copy while its link is valid. Without a bucket configured (local development), the same disk is a private local folder.
+
 ---
 
 ## 3. Decisions and trade-offs
@@ -151,27 +153,29 @@ vendor/bin/pint --test && vendor/bin/phpstan analyse
 npm run check && npm run types:check
 ```
 
-259 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
+275 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
 
 - **Pricing:** the docs' maximum example exactly; the worked examples; half-up rounding through a synthetic rate; an inexact rate throws; Unicode prompts count characters, not bytes.
 - **Webhooks:** valid, wrong secret, tampered body, missing header, stale or future timestamp; the same event twice (one charge); a throw while applying (no event row, so the redelivery is applied); `processing` after `succeeded`; a webhook before the submit response; `internal_error` retried once, never twice, and not by a late duplicate.
 - **Submit:** every row of the error table, including `503` then `202` (two calls, same key, same bytes, one generation) and giving up both ways.
 - **Concurrency:** two submits at once with credit for one, and two `succeeded` deliveries at once. Both fork real processes against committed rows. Removing the row locks makes them fail.
+- **Image copies:** the real ffmpeg conversion (CI installs it), storing and serving our copy, retrying a failed download, never touching money, never fetching outside Pixelforge's host, and the reconcile backfill.
 - **Admin report:** grouping by Pixelforge's completion day (including across midnight UTC), match and mismatch, Pixelforge unreachable, the 92-day limit, admins only.
 - **Reconcile, balances, access** (another user's generation is a 404; `/register` is a 404), **status labels** row by row, and the seeder.
 
 **Live checks** on the deployed app, against Pixelforge's test keywords:
 
-| Check          | Result                                                                                       |
-| -------------- | -------------------------------------------------------------------------------------------- |
-| Plain prompt   | Succeeded in about 5 s; balance fell by exactly the charge ($0.074734375)                    |
-| `[fail]`       | Failed, "Pixelforge couldn't make an image for this prompt", $0, balance unchanged           |
-| `[blocked]`    | Failed, "Blocked by content policy", $0                                                      |
-| `[slow]`       | About 70 s in Processing, updating live, then Succeeded                                      |
-| `[duplicate]`  | One charge; balance exact to the nanodollar                                                  |
-| Five at once   | Three running, two "Waiting for a slot", never more than three in flight; all five succeeded |
-| `[overloaded]` | "Pixelforge is busy, retrying", then Failed at $0 after the 5-minute window                  |
-| Admin report   | Every day's cost matches `GET /v1/usage` for the production key, to the nanodollar           |
+| Check          | Result                                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| Plain prompt   | Succeeded in about 5 s; balance fell by exactly the charge ($0.074734375)                                |
+| `[fail]`       | Failed, "Pixelforge couldn't make an image for this prompt", $0, balance unchanged                       |
+| `[blocked]`    | Failed, "Blocked by content policy", $0                                                                  |
+| `[slow]`       | About 70 s in Processing, updating live, then Succeeded                                                  |
+| `[duplicate]`  | One charge; balance exact to the nanodollar                                                              |
+| Five at once   | Three running, two "Waiting for a slot", never more than three in flight; all five succeeded             |
+| `[overloaded]` | "Pixelforge is busy, retrying", then Failed at $0 after the 5-minute window                              |
+| Admin report   | Every day's cost matches `GET /v1/usage` for the production key, to the nanodollar                       |
+| Image copies   | Every succeeded image copied to S3 within two minutes of deploying; History and downloads serve the WebP |
 
 ---
 
@@ -199,11 +203,11 @@ Webhooks need a public HTTPS URL, so point a tunnel at `localhost:8000` and regi
 
 One Docker image, three containers, on a single Docker host behind Caddy (TLS):
 
-| Container      | Command                            | Notes                                                        |
-| -------------- | ---------------------------------- | ------------------------------------------------------------ |
-| `pf-web`       | nginx + php-fpm                    | Migrates and caches config on start; healthcheck on `/up`    |
-| `pf-queue`     | `php artisan queue:work --tries=0` | Each job's own `retryUntil` decides when to stop; has ffmpeg |
-| `pf-scheduler` | `php artisan schedule:work`        | Runs `pixelforge:reconcile` every minute                     |
+| Container      | Command                            | Notes                                                          |
+| -------------- | ---------------------------------- | -------------------------------------------------------------- |
+| `pf-web`       | nginx + php-fpm                    | Migrates and caches config on start; healthcheck on `/up`      |
+| `pf-queue`     | `php artisan queue:work --tries=0` | Each job decides its own retries; runs ffmpeg for image copies |
+| `pf-scheduler` | `php artisan schedule:work`        | Runs `pixelforge:reconcile` every minute                       |
 
 Queue and cache use Laravel's `database` drivers on the shared Postgres 16, so nothing outside the stack (no Redis) is needed. The workers start only once `pf-web` is healthy, so a release's migrations always run first.
 
@@ -217,7 +221,6 @@ Queue and cache use Laravel's `database` drivers on the shared Postgres 16, so n
 
 ## 7. What I'd do next
 
-- **ffmpeg + S3 image copies:** download each image before Pixelforge's 24-hour link expires, convert it to WebP with a thumbnail, store both in S3, and serve signed links. The worker image already has ffmpeg; this is the next step.
 - **Live updates over websockets** (Reverb) instead of polling.
 - **Staging plus tag promotion:** deploy `main` to staging, promote the exact same image to production on a tag.
 - **Alerting on drift:** a daily job comparing our provider cost with `/v1/usage`, and alerts on `submission_failed` and actual-above-hold warnings.
