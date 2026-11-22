@@ -38,6 +38,7 @@ class AdminReport
     /**
      * @return array{
      *     days: list<array<string, mixed>>,
+     *     accounts: list<array<string, mixed>>,
      *     totals: array<string, mixed>,
      *     pixelforgeError: string|null,
      * }
@@ -56,6 +57,7 @@ class AdminReport
 
         $days = [];
         $totals = ['generations' => 0, 'spend' => 0, 'cost' => 0, 'pixelforgeGenerations' => 0, 'pixelforgeCost' => 0];
+        $accounts = [];
 
         foreach ($dates as $date) {
             $day = $ours[$date] ?? ['generations' => 0, 'spend' => 0, 'cost' => 0, 'users' => []];
@@ -78,6 +80,13 @@ class AdminReport
                 'matches' => $error === null ? $day['cost'] === ($pixelforge['cost'] ?? 0) : null,
             ];
 
+            foreach ($day['users'] as $user) {
+                $accounts[$user['id']] ??= ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'generations' => 0, 'spend' => 0, 'cost' => 0];
+                $accounts[$user['id']]['generations'] += $user['generations'];
+                $accounts[$user['id']]['spend'] += $user['spend'];
+                $accounts[$user['id']]['cost'] += $user['cost'];
+            }
+
             $totals['generations'] += $day['generations'];
             $totals['spend'] += $day['spend'];
             $totals['cost'] += $day['cost'];
@@ -85,8 +94,21 @@ class AdminReport
             $totals['pixelforgeCost'] += $pixelforge['cost'] ?? 0;
         }
 
+        // Biggest spenders first, for the chart.
+        usort($accounts, fn (array $a, array $b) => $b['spend'] <=> $a['spend'] ?: $a['name'] <=> $b['name']);
+
         return [
             'days' => $days,
+            'accounts' => array_map(fn (array $account) => [
+                'id' => $account['id'],
+                'name' => $account['name'],
+                'email' => $account['email'],
+                ...self::figures($account['generations'], $account['spend'], $account['cost']),
+                // Raw nanodollars for bar lengths; text uses the strings.
+                'spendNanos' => $account['spend'],
+                'costNanos' => $account['cost'],
+                'profitNanos' => $account['spend'] - $account['cost'],
+            ], $accounts),
             'totals' => [
                 ...self::figures($totals['generations'], $totals['spend'], $totals['cost']),
                 'pixelforge' => $error === null ? [

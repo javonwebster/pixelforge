@@ -108,6 +108,30 @@ class AdminReportTest extends TestCase
             && $request->header('Authorization') === ['Bearer pf_test_key']);
     }
 
+    public function test_totals_per_account_for_the_chart_biggest_spender_first(): void
+    {
+        $alice = User::factory()->create(['name' => 'Alice']);
+        $bob = User::factory()->create(['name' => 'Bob']);
+        $this->billed($alice, '2026-11-20 10:00:00', 59_060_000, 73_825_000);
+        $this->billed($bob, '2026-11-21 10:00:00', 59_787_500, 74_734_375);
+        $this->billed($bob, '2026-11-22 10:00:00', 47_152_500, 58_940_625);
+        $this->fakeUsage([]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.report'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('report.accounts', 2)
+                ->where('report.accounts.0.name', 'Bob')
+                ->where('report.accounts.0.generations', 2)
+                ->where('report.accounts.0.spend', '$0.133675000')
+                ->where('report.accounts.0.cost', '$0.106940000')
+                ->where('report.accounts.0.profit', '$0.026735000')
+                ->where('report.accounts.0.spendNanos', 133_675_000)
+                ->where('report.accounts.0.costNanos', 106_940_000)
+                ->where('report.accounts.0.profitNanos', 26_735_000)
+                ->where('report.accounts.1.name', 'Alice'));
+    }
+
     public function test_a_cost_belongs_to_the_day_pixelforge_completed_it(): void
     {
         // Submitted just before midnight UTC, finished just after.
