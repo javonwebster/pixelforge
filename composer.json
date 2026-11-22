@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/vue-starter-kit",
+    "name": "javonwebster/pixelforge",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Image generation on Pixelforge, billed at cost plus 25%.",
     "keywords": [
         "laravel",
         "framework"
@@ -97,8 +97,7 @@
         "laravel": {
             "dont-discover": [],
             "installer": {
-                "post-create-project": [
-                ]
+                "post-create-project": []
             }
         }
     },
@@ -109,7 +108,9 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
-        }
+        },
+        "secure-http": true,
+        "disable-tls": false
     },
     "minimum-stability": "stable",
     "prefer-stable": true
