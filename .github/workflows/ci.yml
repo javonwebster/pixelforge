@@ -1,0 +1,257 @@
+name: CI
+
+# Every push and pull request: lint, analyse, test on Postgres 16,
+# build the image.
+# Push to main, only when all of that is green: push the image to GHCR
+# and deploy it to the server. A red build never reaches the live app.
+#
+# Single environment on purpose: one app, one deployer. Staging plus
+# tag promotion is in the README under "What I'd do next".
+#
+# This repo is public, and so are these logs. Never print .env or
+# `docker compose config`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}   # never cancel a deploy
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  APP_URL: https://pixelforge.bebettuh.com
+
+jobs:
+
+  # ---------------------------------------------------------------
+  test:
+    name: lint, analyse, test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pixelforge
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: pixelforge_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pixelforge"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: pixelforge_test
+      DB_USERNAME: pixelforge
+      DB_PASSWORD: secret
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, bcmath, intl, zip, pcntl
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --prefer-dist --no-interaction --no-progress
+          npm ci
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # Before the checks: the build runs Wayfinder, which generates the
+      # typed route files that vue-tsc and the feature tests need.
+      - name: Build frontend
+        run: npm run build
+
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: Larastan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - name: Frontend lint and types
+        run: |
+          npm run check
+          npm run types:check
+
+      - name: PHPUnit (Postgres 16)
+        run: php artisan test
+
+  # ---------------------------------------------------------------
+  image:
+    name: build image
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: pixelforge-ci:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Checks the PHP that shipped in the image, not the runner's. The
+      # entrypoint waits for a database, so bypass it.
+      - name: Image PHP is patched and has ffmpeg
+        run: |
+          docker run --rm --entrypoint php "pixelforge-ci:${{ github.sha }}" -v
+          docker run --rm --entrypoint php "pixelforge-ci:${{ github.sha }}" \
+            -r 'exit(version_compare(PHP_VERSION, "8.4.27", "<") || ini_get("session.upload_progress.enabled") ? 1 : 0);'
+          docker run --rm --entrypoint php "pixelforge-ci:${{ github.sha }}" -m | grep -qx pdo_pgsql
+          docker run --rm --entrypoint ffmpeg "pixelforge-ci:${{ github.sha }}" -hide_banner -version | head -1
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same inputs as the build above, so every layer comes from cache.
+      - name: Push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+
+  # ---------------------------------------------------------------
+  deploy:
+    name: deploy
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read           # lets GITHUB_TOKEN pull the image on the server
+    environment:
+      name: production
+      url: ${{ env.APP_URL }}
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_IMAGE: ${{ env.IMAGE }}:sha-${{ github.sha }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: GHCR_USER,GHCR_TOKEN,NEW_IMAGE
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /srv/apps/pixelforge
+
+            # Record the running image's DIGEST so rollback has a target.
+            # Not the tag: :latest already points at the new build. And
+            # RepoDigests lives on the image, not the container, hence
+            # two steps.
+            IMG_ID=$(docker inspect -f '{{.Image}}' pf-web 2>/dev/null || true)
+            if [ -n "$IMG_ID" ]; then
+              docker image inspect -f '{{index .RepoDigests 0}}' "$IMG_ID" > .previous-image 2>/dev/null || true
+            fi
+            echo "previous: $(cat .previous-image 2>/dev/null || echo none)"
+            echo "new:      $NEW_IMAGE"
+
+            # Run-scoped token: valid only for this job.
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            export PF_IMAGE="$NEW_IMAGE"
+            docker compose pull
+            # With depends_on: service_healthy, `up` itself fails if pf-web
+            # never gets healthy. Don't let set -e skip the rollback below.
+            docker compose up -d --remove-orphans || echo "compose up failed, checking health"
+
+            # The app's own health from inside the server. pf-web is healthy
+            # once migrations ran and /up answers; the workers start after.
+            wait_healthy() {
+              for i in $(seq 1 30); do
+                status=$(docker inspect -f '{{.State.Health.Status}}' pf-web 2>/dev/null || echo missing)
+                [ "$status" = "healthy" ] && { echo "pf-web healthy after $((i * 10))s"; return 0; }
+                sleep 10
+              done
+              return 1
+            }
+
+            if wait_healthy; then
+              docker compose ps
+              docker logout ghcr.io
+              docker image prune -f
+              exit 0
+            fi
+
+            echo "::error::new image did not become healthy, rolling back"
+            docker compose ps
+            docker compose logs --tail 80 web
+            if [ -s .previous-image ]; then
+              export PF_IMAGE="$(cat .previous-image)"
+              echo "reverting to $PF_IMAGE"
+              docker compose up -d --remove-orphans || echo "compose up failed, checking health"
+              if wait_healthy; then
+                echo "rollback healthy: the site is up on the previous image"
+              else
+                echo "::error::ROLLBACK ALSO UNHEALTHY: the site is down, intervene now"
+              fi
+            else
+              echo "::error::no previous image to roll back to"
+            fi
+            docker logout ghcr.io
+            exit 1
+
+      # From outside, through Caddy and TLS. The site is public (no
+      # basic auth), so /up must answer 200.
+      - name: Smoke check
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$APP_URL/up" || echo 000)
+            if [ "$code" = "200" ]; then echo "$APP_URL/up -> 200"; exit 0; fi
+            echo "attempt $i: HTTP $code"
+            sleep 10
+          done
+          echo "::error::$APP_URL/up did not answer 200"
+          exit 1
