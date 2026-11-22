@@ -61,3 +61,28 @@ export type Quote = {
     /** Set when the balance can't cover the maximum; the submit's own words. */
     shortfallMessage: string | null;
 };
+
+/** Matches App\Services\AdminReport. Amounts are exact 9-decimal strings. */
+export type ReportFigures = {
+    generations: number;
+    spend: string;
+    cost: string;
+    profit: string;
+};
+
+export type ReportDay = ReportFigures & {
+    date: string;
+    users: (ReportFigures & { id: number; name: string; email: string })[];
+    pixelforge: { generations: number; cost: string } | null;
+    /** null when Pixelforge's usage couldn't be loaded */
+    matches: boolean | null;
+};
+
+export type Report = {
+    days: ReportDay[];
+    totals: ReportFigures & {
+        pixelforge: { generations: number; cost: string } | null;
+        matches: boolean | null;
+    };
+    pixelforgeError: string | null;
+};

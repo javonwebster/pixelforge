@@ -34,11 +34,9 @@ import {
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { getInitials } from '@/composables/useInitials';
+import { useNavItems } from '@/composables/useNavItems';
 import { toUrl } from '@/lib/utils';
-import {
-    footerNavItems as rightNavItems,
-    mainNavItems,
-} from '@/lib/navigation';
+import { footerNavItems as rightNavItems } from '@/lib/navigation';
 import { create } from '@/routes/generations';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
@@ -56,6 +54,7 @@ const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
 
 const activeItemStyles =
     'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
+const navItems = useNavItems();
 </script>
 
 <template>
@@ -88,7 +87,7 @@ const activeItemStyles =
                             >
                                 <nav class="-mx-3 space-y-1">
                                     <Link
-                                        v-for="item in mainNavItems"
+                                        v-for="item in navItems"
                                         :key="item.title"
                                         :href="item.href"
                                         class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent"
@@ -140,7 +139,7 @@ const activeItemStyles =
                             class="flex h-full items-stretch space-x-2"
                         >
                             <NavigationMenuItem
-                                v-for="(item, index) in mainNavItems"
+                                v-for="(item, index) in navItems"
                                 :key="index"
                                 class="relative flex h-full items-center"
                             >

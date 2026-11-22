@@ -13,8 +13,10 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { footerNavItems, mainNavItems } from '@/lib/navigation';
+import { useNavItems } from '@/composables/useNavItems';
+import { footerNavItems } from '@/lib/navigation';
 import { create } from '@/routes/generations';
+const navItems = useNavItems();
 </script>
 
 <template>
@@ -32,7 +34,7 @@ import { create } from '@/routes/generations';
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="mainNavItems" />
+            <NavMain :items="navItems" />
         </SidebarContent>
 
         <SidebarFooter>
