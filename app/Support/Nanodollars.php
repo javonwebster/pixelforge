@@ -63,4 +63,19 @@ final class Nanodollars
 
         return ($nanos < 0 ? '-$' : '$').$amount;
     }
+
+    /**
+     * An amount as the UI needs it: the 4-decimal figure users see, and
+     * the exact one for a hover title.
+     *
+     * @return array{nanos: int, display: string, exact: string}
+     */
+    public static function present(int $nanos): array
+    {
+        return [
+            'nanos' => $nanos,
+            'display' => self::format($nanos),
+            'exact' => self::format($nanos, 9),
+        ];
+    }
 }

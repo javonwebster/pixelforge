@@ -53,13 +53,13 @@ class AccountDeletionTest extends TestCase
         $user->delete();
 
         // Control: the same session shape signs in a user who isn't deleted.
-        $this->withSession([$sessionKey => $active->id])->get(route('dashboard'))->assertOk();
+        $this->withSession([$sessionKey => $active->id])->get(route('generations.index'))->assertOk();
         $this->app['auth']->forgetGuards();
 
         // A session still holding the deleted user's id: the guard
         // reloads the user by id, which skips deleted rows.
         $this->withSession([$sessionKey => $user->id])
-            ->get(route('dashboard'))
+            ->get(route('generations.index'))
             ->assertRedirect(route('login'));
     }
 

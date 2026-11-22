@@ -1,11 +1,23 @@
 <?php
 
+use App\Http\Controllers\CreditController;
+use App\Http\Controllers\GenerationController;
+use App\Http\Controllers\QuoteController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'Welcome')->name('home');
+// No public landing page: sign-up is closed, so guests go to login.
+Route::get('/', fn () => to_route(auth()->check() ? 'generations.create' : 'login'))->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+Route::middleware('auth')->group(function () {
+    // Fortify's default home; kept so the kit's links still land somewhere.
+    Route::get('dashboard', fn () => to_route('generations.create'))->name('dashboard');
+
+    Route::get('generate', [GenerationController::class, 'create'])->name('generations.create');
+    Route::post('generate/quote', QuoteController::class)->middleware('throttle:120,1')->name('generations.quote');
+    Route::post('generations', [GenerationController::class, 'store'])->name('generations.store');
+    Route::get('generations', [GenerationController::class, 'index'])->name('generations.index');
+
+    Route::post('credits', [CreditController::class, 'store'])->name('credits.store');
 });
 
 require __DIR__.'/settings.php';

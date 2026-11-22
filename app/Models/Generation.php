@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * One local row per Pixelforge generation. Its UUID is also the
@@ -92,6 +93,16 @@ class Generation extends Model
     public function retryOf(): BelongsTo
     {
         return $this->belongsTo(Generation::class, 'retry_of_id');
+    }
+
+    /**
+     * The automatic retry of this generation, if one was made.
+     *
+     * @return HasOne<Generation, $this>
+     */
+    public function retry(): HasOne
+    {
+        return $this->hasOne(Generation::class, 'retry_of_id');
     }
 
     /** @return HasMany<LedgerEntry, $this> */
