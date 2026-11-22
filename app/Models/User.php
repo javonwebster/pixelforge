@@ -35,6 +35,16 @@ class User extends Authenticatable
     use HasFactory, Notifiable, SoftDeletes;
 
     /**
+     * Matches the column default, so a freshly created user has it before
+     * any reload (the admin gate and the shared auth.user rely on it).
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_admin' => false,
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
