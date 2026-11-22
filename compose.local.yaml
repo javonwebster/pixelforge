@@ -10,22 +10,21 @@
 name: pixelforge-local
 
 services:
-
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "127.0.0.1:5433:5432"
-    environment:
-      POSTGRES_USER: pixelforge
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: pixelforge
-    volumes:
-      - local_pg:/var/lib/postgresql/data
-      - ./docker/local/create-test-db.sql:/docker-entrypoint-initdb.d/create-test-db.sql:ro
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "pixelforge"]
-      interval: 3s
-      retries: 20
+    postgres:
+        image: postgres:16-alpine
+        ports:
+            - '127.0.0.1:5433:5432'
+        environment:
+            POSTGRES_USER: pixelforge
+            POSTGRES_PASSWORD: secret
+            POSTGRES_DB: pixelforge
+        volumes:
+            - local_pg:/var/lib/postgresql/data
+            - ./docker/local/create-test-db.sql:/docker-entrypoint-initdb.d/create-test-db.sql:ro
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-U', 'pixelforge']
+            interval: 3s
+            retries: 20
 
 volumes:
-  local_pg:
+    local_pg:

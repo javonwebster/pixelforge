@@ -1,0 +1,79 @@
+# Deployed as /srv/apps/pixelforge/compose.yaml on the server.
+#
+# One image, three containers. Postgres is the server's shared
+# instance on the external `data` network (DB_HOST=postgres); there is
+# no database container here. Caddy reaches pf-web over `edge`.
+#
+# No `build:`. Images are built in CI only. The deploy workflow sets
+# PF_IMAGE to the commit's sha tag, or to the previous digest when it
+# rolls back. A manual `docker compose up -d` falls back to :latest.
+
+name: pixelforge
+
+x-app: &app
+    image: ${PF_IMAGE:-ghcr.io/javonwebster/pixelforge:latest}
+    restart: unless-stopped
+    env_file: .env
+    logging:
+        driver: json-file
+        options: { max-size: '10m', max-file: '3' }
+
+services:
+    web:
+        <<: *app
+        container_name: pf-web
+        networks: [edge, data]
+        deploy:
+            resources:
+                limits:
+                    memory: 384M
+        healthcheck:
+            test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1/up || exit 1']
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 40s
+
+    queue:
+        <<: *app
+        container_name: pf-queue
+        networks: [data]
+        deploy:
+            resources:
+                limits:
+                    memory: 384M # ffmpeg runs here
+        # Start only once pf-web is healthy, i.e. this release's migrations
+        # have run.
+        depends_on:
+            web: { condition: service_healthy }
+        entrypoint: [''] # only pf-web migrates
+        # --tries=0: each job decides for itself via retryUntil().
+        # --max-time: restart hourly to shed memory; Docker brings it back.
+        command:
+            ['php', 'artisan', 'queue:work', '--tries=0', '--max-time=3600']
+        stop_grace_period: 60s # let a running job finish on deploy
+        # The image healthcheck probes nginx, which this container doesn't
+        # run. It would only ever report "unhealthy".
+        healthcheck:
+            disable: true
+
+    scheduler:
+        <<: *app
+        container_name: pf-scheduler
+        networks: [data]
+        deploy:
+            resources:
+                limits:
+                    memory: 192M
+        # Start only once pf-web is healthy, i.e. this release's migrations
+        # have run.
+        depends_on:
+            web: { condition: service_healthy }
+        entrypoint: ['']
+        command: ['php', 'artisan', 'schedule:work']
+        healthcheck:
+            disable: true
+
+networks:
+    edge: { name: edge, external: true }
+    data: { name: data, external: true }
