@@ -47,6 +47,31 @@ return [
             'report' => false,
         ],
 
+        // Our copies of generated images (WebP + thumbnail), so they outlive
+        // Pixelforge's 24-hour links. S3 when a bucket is configured
+        // (production), a private local folder otherwise. Both throw on
+        // failure, so the image job retries instead of thinking it worked.
+        'images' => env('AWS_BUCKET') ? [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'url' => env('AWS_URL'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => true,
+            'report' => false,
+        ] : [
+            'driver' => 'local',
+            'root' => storage_path('app/private/images'),
+            // Its own path: each served local disk needs a unique URL.
+            'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/local-images',
+            'serve' => true,
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
