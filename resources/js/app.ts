@@ -5,7 +5,9 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+// The production image is built without a .env, so VITE_APP_NAME can be
+// undefined there.
+const appName = import.meta.env.VITE_APP_NAME || 'PixelForge';
 
 void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
