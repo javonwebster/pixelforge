@@ -12,6 +12,7 @@ use App\Models\WebhookEvent;
 use App\Services\LedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\FakesPixelforge;
 use Tests\TestCase;
@@ -73,6 +74,7 @@ class PixelforgeWebhookTest extends TestCase
 
     public function test_the_same_event_twice_charges_once(): void
     {
+        Log::spy();
         $event = $this->webhookEvent($this->generation, 'succeeded');
 
         $this->postWebhook($event)->assertOk();
@@ -82,6 +84,7 @@ class PixelforgeWebhookTest extends TestCase
         $this->assertSame(1, $this->entries($this->generation, LedgerType::Release));
         $this->assertSame(1, WebhookEvent::query()->count());
         $this->assertSame(self::START - self::SUCCEEDED_PRICE, $this->balance());
+        Log::shouldHaveReceived('info')->with('Duplicate Pixelforge webhook ignored.', \Mockery::on(fn (array $context) => $context['event_id'] === $event['id']))->once();
     }
 
     public function test_two_different_events_with_the_same_result_charge_once(): void

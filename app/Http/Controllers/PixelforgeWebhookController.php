@@ -8,6 +8,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * POST /webhooks/pixelforge. The signature is already verified by
@@ -55,6 +56,14 @@ class PixelforgeWebhookController extends Controller
                     'received_at' => now(),
                 ]));
             } catch (UniqueConstraintViolationException) {
+                // Seen before: answer 200 so Pixelforge stops retrying. The
+                // log line is the only trace a duplicate leaves.
+                Log::info('Duplicate Pixelforge webhook ignored.', [
+                    'event_id' => $event['id'],
+                    'type' => $event['type'],
+                    'delivery_attempt' => $request->header('Pixelforge-Delivery-Attempt'),
+                ]);
+
                 return 'duplicate';
             }
 
