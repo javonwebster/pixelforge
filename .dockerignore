@@ -1,0 +1,31 @@
+.git
+.github
+.idea
+node_modules
+vendor
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+public/build
+public/hot
+public/storage
+.env
+.env.*
+!.env.example
+*.md
+compose.local.yaml
+deploy
+docker/local
+database/database.sqlite
+
+# Locally generated. Gitignored, so a CI checkout never has them, but a
+# local `docker build` would copy them in: a packages.php built with dev
+# dependencies makes the --no-dev image fail on a missing provider, and
+# generated Wayfinder files would mask a broken build-time generation.
+bootstrap/cache/*.php
+resources/js/actions
+resources/js/routes
+resources/js/wayfinder
+.phpunit.result.cache
+.phpunit.cache
