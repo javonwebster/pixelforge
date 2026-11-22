@@ -1,7 +1,11 @@
 <script setup lang="ts">
 // Real radio inputs styled as tiles, so keyboard and screen readers work.
+import StepHeading from '@/components/generations/StepHeading.vue';
+
 defineProps<{
+    step: number;
     legend: string;
+    hint?: string;
     name: string;
     options: { value: string; label: string; hint?: string }[];
 }>();
@@ -11,7 +15,9 @@ const model = defineModel<string>({ required: true });
 
 <template>
     <fieldset class="grid gap-2">
-        <legend class="mb-2 text-sm font-medium">{{ legend }}</legend>
+        <legend class="mb-2">
+            <StepHeading :step="step" :title="legend" :hint="hint" />
+        </legend>
         <div class="grid grid-cols-3 gap-2">
             <label
                 v-for="option in options"

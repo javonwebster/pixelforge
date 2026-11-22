@@ -11,8 +11,8 @@ import BalancePanel from '@/components/generations/BalancePanel.vue';
 import OptionGroup from '@/components/generations/OptionGroup.vue';
 import Price from '@/components/generations/Price.vue';
 import ReferenceImageInput from '@/components/generations/ReferenceImageInput.vue';
+import StepHeading from '@/components/generations/StepHeading.vue';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { create } from '@/routes/generations';
 import type { Balance, Quote } from '@/types';
 
@@ -157,7 +157,7 @@ function submit(): void {
     <div class="flex flex-col gap-6 p-4">
         <Heading
             title="Generate an image"
-            description="You're charged Pixelforge's cost plus 25% when it finishes. Failed generations are free."
+            description="Five steps. Your image appears in History when it's ready."
         />
 
         <BalancePanel :balance="balance" />
@@ -165,8 +165,13 @@ function submit(): void {
         <div class="grid gap-6 lg:grid-cols-[1fr_20rem]">
             <form class="flex flex-col gap-6" @submit.prevent="submit">
                 <div class="grid gap-2">
-                    <div class="flex items-baseline justify-between">
-                        <Label for="prompt">Prompt</Label>
+                    <div class="flex items-end justify-between gap-4">
+                        <StepHeading
+                            :step="1"
+                            title="Describe your image"
+                            hint="Say what you want to see: the subject, the setting, the style."
+                            for="prompt"
+                        />
                         <span
                             class="text-xs tabular-nums"
                             :class="
@@ -194,7 +199,8 @@ function submit(): void {
 
                 <OptionGroup
                     v-model="form.size"
-                    legend="Size"
+                    :step="2"
+                    legend="Choose a size"
                     name="size"
                     :options="sizeOptions"
                 />
@@ -202,19 +208,20 @@ function submit(): void {
 
                 <OptionGroup
                     v-model="form.quality"
-                    legend="Quality"
+                    :step="3"
+                    legend="Choose a quality"
+                    hint="Higher quality looks sharper, takes longer and costs more."
                     name="quality"
                     :options="qualityOptions"
                 />
                 <InputError :message="form.errors.quality" />
 
                 <div class="grid gap-2">
-                    <span class="text-sm font-medium"
-                        >Reference images
-                        <span class="font-normal text-muted-foreground"
-                            >(optional, up to {{ maxReferenceImages }})</span
-                        ></span
-                    >
+                    <StepHeading
+                        :step="4"
+                        title="Add reference images (optional)"
+                        :hint="`Paste links to up to ${maxReferenceImages} images for Pixelforge to take inspiration from.`"
+                    />
                     <ReferenceImageInput
                         v-for="(_, index) in referenceImages"
                         :key="index"
@@ -242,6 +249,12 @@ function submit(): void {
                 aria-label="Price"
                 aria-live="polite"
             >
+                <StepHeading
+                    :step="5"
+                    title="Check the price and generate"
+                    hint="You pay the actual price when it finishes, never more than the maximum. Failed images are free."
+                />
+
                 <dl class="grid gap-3">
                     <div class="flex items-baseline justify-between">
                         <dt class="text-sm text-muted-foreground">
@@ -276,17 +289,17 @@ function submit(): void {
                 </dl>
 
                 <p class="text-xs text-muted-foreground">
-                    The maximum is held from your balance while it runs. You pay
-                    the actual price, which is never more than the maximum.
+                    The maximum is set aside from your balance while it runs.
                 </p>
 
+                <!-- The server writes this, so it matches the submit's refusal. -->
                 <p
-                    v-if="quote && !quote.enough"
+                    v-if="quote?.shortfallMessage"
                     class="text-sm text-red-600 dark:text-red-500"
+                    role="alert"
                     data-test="insufficient"
                 >
-                    This needs up to {{ quote.maximum.display }}. Your balance
-                    is {{ quote.available.display }}. Buy credits to continue.
+                    {{ quote.shortfallMessage }}
                 </p>
                 <InputError :message="errorFor('balance')" />
 
