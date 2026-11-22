@@ -64,13 +64,17 @@ function localTime(iso: string): string {
     });
 }
 
+// Money in is green, money spent is red. Holds and returned holds are
+// reservations, not spending, so they stay muted.
 function amountClass(row: LedgerRow): string {
-    // Holds and returned holds are reservations, not spending: muted.
-    if (row.type === 'hold' || row.type === 'release') {
-        return 'text-muted-foreground';
+    switch (row.type) {
+        case 'purchase':
+            return 'text-emerald-600 dark:text-emerald-400';
+        case 'charge':
+            return 'text-red-600 dark:text-red-400';
+        default:
+            return 'text-muted-foreground';
     }
-
-    return row.amount.nanos > 0 ? 'text-emerald-600 dark:text-emerald-400' : '';
 }
 
 const firstError = computed(() => {
@@ -166,7 +170,55 @@ const firstError = computed(() => {
             </Button>
         </div>
 
-        <div v-else class="overflow-x-auto rounded-xl border">
+        <!-- Phones: one row per entry, amount and balance on the right. -->
+        <ul
+            v-if="entries.data.length"
+            class="divide-y rounded-xl border md:hidden"
+        >
+            <li
+                v-for="row in entries.data"
+                :key="row.id"
+                class="flex items-start justify-between gap-3 p-3"
+                data-test="ledger-item"
+            >
+                <div class="min-w-0">
+                    <div class="text-sm font-medium">{{ row.label }}</div>
+                    <Link
+                        v-if="row.generationId && row.prompt"
+                        :href="`${historyIndex().url}#generation-${row.generationId}`"
+                        class="line-clamp-1 text-xs text-muted-foreground"
+                    >
+                        {{ row.prompt }}
+                    </Link>
+                    <time
+                        :datetime="row.createdAt"
+                        class="text-xs text-muted-foreground"
+                        >{{ localTime(row.createdAt) }}</time
+                    >
+                </div>
+                <div class="shrink-0 text-right tabular-nums">
+                    <div
+                        class="text-sm font-medium"
+                        :class="amountClass(row)"
+                        :title="row.amount.exact"
+                    >
+                        {{ row.amount.display }}
+                    </div>
+                    <div
+                        class="text-xs text-muted-foreground"
+                        :title="row.balanceAfter.exact"
+                    >
+                        Balance {{ row.balanceAfter.display }}
+                    </div>
+                </div>
+            </li>
+        </ul>
+
+        <!-- Wider screens: the full table. -->
+        <div
+            v-if="entries.data.length"
+            class="hidden overflow-x-auto rounded-xl border md:block"
+        >
             <table class="w-full text-sm">
                 <thead
                     class="bg-muted/50 text-left text-xs text-muted-foreground"
