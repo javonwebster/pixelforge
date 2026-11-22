@@ -25,12 +25,12 @@ The cost sum is computed in exact decimals and converted to nanodollars once, at
 
 **Estimate, maximum, actual**
 
-| Token type | Estimate | Maximum (what's held) | Actual (after success) |
-| --- | --- | --- | --- |
-| Input text | `ceil(characters / 4)`, Unicode characters | estimate × 1.15, rounded up | `usage.input_text_tokens` |
-| Input image | 765 × reference images | same | `usage.input_image_tokens` |
-| Output | Fixed by size and quality | same | `usage.output_tokens` |
-| Reasoning | Midpoint of the quality's range | Top of the range | `usage.reasoning_tokens` |
+| Token type  | Estimate                                   | Maximum (what's held)       | Actual (after success)     |
+| ----------- | ------------------------------------------ | --------------------------- | -------------------------- |
+| Input text  | `ceil(characters / 4)`, Unicode characters | estimate × 1.15, rounded up | `usage.input_text_tokens`  |
+| Input image | 765 × reference images                     | same                        | `usage.input_image_tokens` |
+| Output      | Fixed by size and quality                  | same                        | `usage.output_tokens`      |
+| Reasoning   | Midpoint of the quality's range            | Top of the range            | `usage.reasoning_tokens`   |
 
 The docs' own maximum example (high, 1536×1024, 400 characters, 2 reference images) comes out at exactly **$0.373875**, and it's a unit test.
 
@@ -39,12 +39,12 @@ The docs' own maximum example (high, 1536×1024, 400 characters, 2 reference ima
 
 **The ledger.** A balance is the sum of the user's [`ledger_entries`](database/migrations/2026_11_22_000003_create_ledger_entries_table.php). Nothing else stores a balance that could drift. Only [`LedgerService`](app/Services/LedgerService.php) writes it.
 
-| Event | Entry |
-| --- | --- |
-| Buy credits | `purchase` +amount |
-| Submit | `hold` −maximum |
-| Success | `release` +maximum, `charge` −actual |
-| Failure, rejection, giving up | `release` +maximum |
+| Event                         | Entry                                |
+| ----------------------------- | ------------------------------------ |
+| Buy credits                   | `purchase` +amount                   |
+| Submit                        | `hold` −maximum                      |
+| Success                       | `release` +maximum, `charge` −actual |
+| Failure, rejection, giving up | `release` +maximum                   |
 
 - **Unique (`generation_id`, `type`)** is the database-level guarantee that a generation is held, released and charged at most once each. A check constraint enforces each type's sign.
 - **Submitting** locks the user's row (`SELECT … FOR UPDATE`), checks the available balance against the maximum, then writes the generation and its hold in one transaction. Two simultaneous submits can't both pass the check; a test forks two processes to prove it.
@@ -67,40 +67,42 @@ Every status change after creation goes through one class, [`GenerationUpdater`]
 
 **State machine**
 
-| Status | Rank | Set by | Meaning |
-| --- | --- | --- | --- |
-| `pending` | 0 | Submit | Created locally, not yet accepted |
-| `submission_failed` | 0 | Job, giving up | Outcome unclear (timeout, no response): Pixelforge may have it |
-| `queued` | 1 | Pixelforge | Accepted |
-| `processing` | 2 | Pixelforge | Running |
-| `succeeded` | 3, terminal | Pixelforge | Billed |
-| `failed` | 3, terminal | Pixelforge | Not billed |
-| `rejected` | 3, terminal | Job | Pixelforge definitely created nothing |
+| Status              | Rank        | Set by         | Meaning                                                        |
+| ------------------- | ----------- | -------------- | -------------------------------------------------------------- |
+| `pending`           | 0           | Submit         | Created locally, not yet accepted                              |
+| `submission_failed` | 0           | Job, giving up | Outcome unclear (timeout, no response): Pixelforge may have it |
+| `queued`            | 1           | Pixelforge     | Accepted                                                       |
+| `processing`        | 2           | Pixelforge     | Running                                                        |
+| `succeeded`         | 3, terminal | Pixelforge     | Billed                                                         |
+| `failed`            | 3, terminal | Pixelforge     | Not billed                                                     |
+| `rejected`          | 3, terminal | Job            | Pixelforge definitely created nothing                          |
 
 A status applies only if its rank is higher than the current one, and nothing changes a terminal status, so a late or duplicate event can't undo a result. `submission_failed` sits at rank 0 on purpose: if Pixelforge later reports the generation, it moves forward and is billed like any other.
 
-**Idempotent submits.** The local UUID is both the `Idempotency-Key` and `metadata.local_id`. The request body is built from the stored row and encoded once, so every retry is byte-identical: Pixelforge replays the original instead of creating a second one, and `409 idempotency_key_reused` can't happen. A replay returns the generation *as it is now*, possibly already succeeded, which is why the submit response goes through the same updater as webhooks.
+**Idempotent submits.** The local UUID is both the `Idempotency-Key` and `metadata.local_id`. The request body is built from the stored row and encoded once, so every retry is byte-identical: Pixelforge replays the original instead of creating a second one, and `409 idempotency_key_reused` can't happen. A replay returns the generation _as it is now_, possibly already succeeded, which is why the submit response goes through the same updater as webhooks.
 
 **Every submit answer is handled** ([`SubmitGeneration`](app/Jobs/SubmitGeneration.php)):
 
-| Pixelforge answer | What happens | User sees |
-| --- | --- | --- |
-| `202` | Saved and passed to the updater | Queued |
-| `429` concurrency / rate limit | Retry after `Retry-After`; checks the local in-flight count first so it doesn't spend a request on a sure `429` | Waiting for a slot |
-| `503`, timeout, no response | Retry with backoff (2, 4, 8 … 60 s), same key | Pixelforge is busy, retrying |
-| `429` daily limit, `400` content policy | `rejected`, hold released | Failed, $0 |
-| `422`, `401` | `rejected`, hold released, logged as a bug | Failed, $0 |
-| `409` | `submission_failed`, logged as critical | Failed, $0 |
+| Pixelforge answer                       | What happens                                                                                                    | User sees                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `202`                                   | Saved and passed to the updater                                                                                 | Queued                       |
+| `429` concurrency / rate limit          | Retry after `Retry-After`; checks the local in-flight count first so it doesn't spend a request on a sure `429` | Waiting for a slot           |
+| `503`, timeout, no response             | Retry with backoff (2, 4, 8 … 60 s), same key                                                                   | Pixelforge is busy, retrying |
+| `429` daily limit, `400` content policy | `rejected`, hold released                                                                                       | Failed, $0                   |
+| `422`, `401`                            | `rejected`, hold released, logged as a bug                                                                      | Failed, $0                   |
+| `409`                                   | `submission_failed`, logged as critical                                                                         | Failed, $0                   |
 
 The job gives up after 5 minutes. If the last answer was a clean refusal, nothing exists at Pixelforge and the row is `rejected`; after a timeout it's `submission_failed`, and reconcile keeps looking for it for 24 hours.
 
 **Webhooks** ([`PixelforgeWebhookController`](app/Http/Controllers/PixelforgeWebhookController.php)):
+
 - **Signed:** HMAC-SHA256 of `<t>.<raw body>` with the `whsec_` secret, constant-time compare, 5-minute tolerance either way. Anything else gets a `400` and nothing is stored.
 - **Deduped and applied in one transaction:** insert the event (unique `event_id`), apply it, commit. A duplicate hits the unique index and gets a `200` with nothing else done (and a log line). If applying throws, the insert rolls back too and Pixelforge's retry is processed as new. With two separate steps, a crash between them would record the event without applying it, and the retry would be discarded as a duplicate.
 - **Before the POST returns:** a webhook can arrive first, so it's matched by `metadata.local_id`, not only by Pixelforge's id.
 - **Outside the `web` middleware group:** no session, cookies or CSRF.
 
 **Reconcile** ([`pixelforge:reconcile`](app/Console/Commands/ReconcileGenerations.php), every minute), because delivery isn't guaranteed:
+
 1. Re-applies stored webhook events that matched nothing yet.
 2. Polls `queued`/`processing` generations with no news for 60 seconds (at most 20 per run).
 3. Finds `submission_failed` rows from the last day with one read-only `GET /v1/generations` call, matching `metadata.local_id`.
@@ -115,26 +117,26 @@ The job gives up after 5 minutes. If the last answer was a clean refusal, nothin
 
 The brief leaves these open on purpose. Each has a decision and a reason.
 
-| Open point | Decision | Why |
-| --- | --- | --- |
-| What "estimate" means | Show an **estimate** (midpoint reasoning) and a **maximum** | Honest about the range; the maximum is what the hold needs |
-| Fractions of a cent | Store exact nanodollars; **users see whole cents**, exact on hover; admins see 9 decimals | Never lose money to rounding; cents are what users expect; admin figures match `/v1/usage` exactly |
-| Low-balance message | Rounds what's needed **up** and the balance **down** | So it can never read "needs $0.09, balance $0.09" |
-| Markup rounding | Half up to the nanodollar | Exact with today's rates; the rule exists for future ones |
-| Retry after `internal_error` | Once, automatically, as a new linked row; `generation_failed` never | Free if it fails again; docs say retrying usually works |
-| Submit errors before acceptance | `rejected`, free, with a plain reason | Nothing was created at Pixelforge |
-| Response lost after acceptance | Retry with the same key; give up after **5 minutes** as `submission_failed`; reconcile looks for it for 24 h and bills it if it succeeded | Pixelforge billed us and the user gets the image; our records stay in step with `/v1/usage`. Five minutes keeps "busy, retrying" short |
-| Balance can't cover the maximum | Refuse before submitting, on the page and on the server, with the same message | The maximum is the most Pixelforge can bill |
-| Actual cost above the hold | Charge it anyway; balance may dip slightly negative; logged | It's what Pixelforge billed. Shouldn't happen |
-| Which day a cost belongs to | UTC day of Pixelforge's `completed_at` | How `/v1/usage` bills |
-| Rates for the actual cost | The generation's own `rates` | Fixed at creation |
-| Rates for the retry's estimate | The failed generation's own rates | No pricing HTTP call while the webhook holds a row lock |
-| Live status | Inertia `usePoll` every 3 s, partial reload of `generations` and `balance`, only while something is unfinished | Simple and inside the stack; Reverb is the next step |
-| Sign-up | Closed; seeded admin and demo accounts | Public URL, account-wide daily quota, public repo |
-| Deleting an account | Soft delete | Money records restrict hard deletes, so the admin report keeps matching `/v1/usage` |
-| Reference images | Links only (up to 4, http/https), shown as links, never `<img>` | It's what the API accepts. Pixelforge bills each but doesn't download them, so uploads would cost users money for nothing |
-| Downloads | Streamed through the app, owner only, from Pixelforge's host only | Browsers ignore `download` on cross-origin links; the host check stops the server fetching arbitrary URLs |
-| Environments | One deployed environment, no staging | One deployer, one night. Staging and tag promotion are in "What I'd do next" |
+| Open point                      | Decision                                                                                                                                  | Why                                                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| What "estimate" means           | Show an **estimate** (midpoint reasoning) and a **maximum**                                                                               | Honest about the range; the maximum is what the hold needs                                                                             |
+| Fractions of a cent             | Store exact nanodollars; **users see whole cents**, exact on hover; admins see 9 decimals                                                 | Never lose money to rounding; cents are what users expect; admin figures match `/v1/usage` exactly                                     |
+| Low-balance message             | Rounds what's needed **up** and the balance **down**                                                                                      | So it can never read "needs $0.09, balance $0.09"                                                                                      |
+| Markup rounding                 | Half up to the nanodollar                                                                                                                 | Exact with today's rates; the rule exists for future ones                                                                              |
+| Retry after `internal_error`    | Once, automatically, as a new linked row; `generation_failed` never                                                                       | Free if it fails again; docs say retrying usually works                                                                                |
+| Submit errors before acceptance | `rejected`, free, with a plain reason                                                                                                     | Nothing was created at Pixelforge                                                                                                      |
+| Response lost after acceptance  | Retry with the same key; give up after **5 minutes** as `submission_failed`; reconcile looks for it for 24 h and bills it if it succeeded | Pixelforge billed us and the user gets the image; our records stay in step with `/v1/usage`. Five minutes keeps "busy, retrying" short |
+| Balance can't cover the maximum | Refuse before submitting, on the page and on the server, with the same message                                                            | The maximum is the most Pixelforge can bill                                                                                            |
+| Actual cost above the hold      | Charge it anyway; balance may dip slightly negative; logged                                                                               | It's what Pixelforge billed. Shouldn't happen                                                                                          |
+| Which day a cost belongs to     | UTC day of Pixelforge's `completed_at`                                                                                                    | How `/v1/usage` bills                                                                                                                  |
+| Rates for the actual cost       | The generation's own `rates`                                                                                                              | Fixed at creation                                                                                                                      |
+| Rates for the retry's estimate  | The failed generation's own rates                                                                                                         | No pricing HTTP call while the webhook holds a row lock                                                                                |
+| Live status                     | Inertia `usePoll` every 3 s, partial reload of `generations` and `balance`, only while something is unfinished                            | Simple and inside the stack; Reverb is the next step                                                                                   |
+| Sign-up                         | Closed; seeded admin and demo accounts                                                                                                    | Public URL, account-wide daily quota, public repo                                                                                      |
+| Deleting an account             | Soft delete                                                                                                                               | Money records restrict hard deletes, so the admin report keeps matching `/v1/usage`                                                    |
+| Reference images                | Links only (up to 4, http/https), shown as links, never `<img>`                                                                           | It's what the API accepts. Pixelforge bills each but doesn't download them, so uploads would cost users money for nothing              |
+| Downloads                       | Streamed through the app, owner only, from Pixelforge's host only                                                                         | Browsers ignore `download` on cross-origin links; the host check stops the server fetching arbitrary URLs                              |
+| Environments                    | One deployed environment, no staging                                                                                                      | One deployer, one night. Staging and tag promotion are in "What I'd do next"                                                           |
 
 ---
 
@@ -157,15 +159,15 @@ npm run check && npm run types:check
 
 **Live checks** on the deployed app, against Pixelforge's test keywords:
 
-| Check | Result |
-| --- | --- |
-| Plain prompt | Succeeded in about 5 s; balance fell by exactly the charge ($0.074734375) |
-| `[fail]` | Failed, "Pixelforge couldn't make an image for this prompt", $0, balance unchanged |
-| `[blocked]` | Failed, "Blocked by content policy", $0 |
-| `[slow]` | About 70 s in Processing, updating live, then Succeeded |
-| `[duplicate]` | One charge; balance exact to the nanodollar |
-| Five at once | Three running, two "Waiting for a slot", never more than three in flight; all five succeeded |
-| `[overloaded]` | "Pixelforge is busy, retrying", then Failed at $0 after the 5-minute window |
+| Check          | Result                                                                                       |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| Plain prompt   | Succeeded in about 5 s; balance fell by exactly the charge ($0.074734375)                    |
+| `[fail]`       | Failed, "Pixelforge couldn't make an image for this prompt", $0, balance unchanged           |
+| `[blocked]`    | Failed, "Blocked by content policy", $0                                                      |
+| `[slow]`       | About 70 s in Processing, updating live, then Succeeded                                      |
+| `[duplicate]`  | One charge; balance exact to the nanodollar                                                  |
+| Five at once   | Three running, two "Waiting for a slot", never more than three in flight; all five succeeded |
+| `[overloaded]` | "Pixelforge is busy, retrying", then Failed at $0 after the 5-minute window                  |
 
 ---
 
@@ -180,6 +182,7 @@ composer dev                                   # server, queue worker, logs, Vit
 ```
 
 In `.env`, set:
+
 - `PIXELFORGE_API_KEY` and `PIXELFORGE_WEBHOOK_SECRET`: the **local** key's values (each key has its own webhook URL and secret).
 - `SEED_ADMIN_*` and `SEED_DEMO_*`, then `php artisan db:seed` to create the two accounts with $5 each.
 - `PIXELFORGE_SUBMIT_GIVE_UP_MINUTES` (optional): shorten it to watch `[overloaded]` give up sooner.
@@ -192,11 +195,11 @@ Webhooks need a public HTTPS URL, so point a tunnel at `localhost:8000` and regi
 
 One Docker image, three containers, on a single Docker host behind Caddy (TLS):
 
-| Container | Command | Notes |
-| --- | --- | --- |
-| `pf-web` | nginx + php-fpm | Migrates and caches config on start; healthcheck on `/up` |
-| `pf-queue` | `php artisan queue:work --tries=0` | Each job's own `retryUntil` decides when to stop; has ffmpeg |
-| `pf-scheduler` | `php artisan schedule:work` | Runs `pixelforge:reconcile` every minute |
+| Container      | Command                            | Notes                                                        |
+| -------------- | ---------------------------------- | ------------------------------------------------------------ |
+| `pf-web`       | nginx + php-fpm                    | Migrates and caches config on start; healthcheck on `/up`    |
+| `pf-queue`     | `php artisan queue:work --tries=0` | Each job's own `retryUntil` decides when to stop; has ffmpeg |
+| `pf-scheduler` | `php artisan schedule:work`        | Runs `pixelforge:reconcile` every minute                     |
 
 Queue and cache use Laravel's `database` drivers on the shared Postgres 16, so nothing outside the stack (no Redis) is needed. The workers start only once `pf-web` is healthy, so a release's migrations always run first.
 
