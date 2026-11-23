@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GenerationStatus;
+use App\Models\User;
 use App\Services\Pixelforge\PixelforgeApiException;
 use App\Services\Pixelforge\PixelforgeClient;
 use App\Services\Pixelforge\ThrottledLocallyException;
@@ -75,6 +76,7 @@ class AdminReport
                 'pixelforge' => $pixelforge === null ? null : [
                     'generations' => $pixelforge['generations'],
                     'cost' => Nanodollars::format($pixelforge['cost'], 9),
+                    'costNanos' => $pixelforge['cost'],
                 ],
                 // Money is what has to match; counts are shown for context.
                 'matches' => $error === null ? $day['cost'] === ($pixelforge['cost'] ?? 0) : null,
@@ -94,6 +96,13 @@ class AdminReport
             $totals['pixelforgeCost'] += $pixelforge['cost'] ?? 0;
         }
 
+        // Every current account appears, even with nothing billed in the
+        // range, so the chart always covers all of them. Deleted accounts
+        // appear only if they had billed generations in the range.
+        foreach (User::query()->orderBy('name')->get(['id', 'name', 'email']) as $user) {
+            $accounts[$user->id] ??= ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'generations' => 0, 'spend' => 0, 'cost' => 0];
+        }
+
         // Biggest spenders first, for the chart.
         usort($accounts, fn (array $a, array $b) => $b['spend'] <=> $a['spend'] ?: $a['name'] <=> $b['name']);
 
@@ -104,16 +113,13 @@ class AdminReport
                 'name' => $account['name'],
                 'email' => $account['email'],
                 ...self::figures($account['generations'], $account['spend'], $account['cost']),
-                // Raw nanodollars for bar lengths; text uses the strings.
-                'spendNanos' => $account['spend'],
-                'costNanos' => $account['cost'],
-                'profitNanos' => $account['spend'] - $account['cost'],
             ], $accounts),
             'totals' => [
                 ...self::figures($totals['generations'], $totals['spend'], $totals['cost']),
                 'pixelforge' => $error === null ? [
                     'generations' => $totals['pixelforgeGenerations'],
                     'cost' => Nanodollars::format($totals['pixelforgeCost'], 9),
+                    'costNanos' => $totals['pixelforgeCost'],
                 ] : null,
                 'matches' => $error === null ? $totals['cost'] === $totals['pixelforgeCost'] : null,
             ],
@@ -208,7 +214,10 @@ class AdminReport
     }
 
     /**
-     * @return array{generations: int, spend: string, cost: string, profit: string}
+     * Exact display strings, plus raw nanodollars for the chart's bar
+     * lengths and the CSV export.
+     *
+     * @return array{generations: int, spend: string, cost: string, profit: string, spendNanos: int, costNanos: int, profitNanos: int}
      */
     private static function figures(int $generations, int $spend, int $cost): array
     {
@@ -217,6 +226,9 @@ class AdminReport
             'spend' => Nanodollars::format($spend, 9),
             'cost' => Nanodollars::format($cost, 9),
             'profit' => Nanodollars::format($spend - $cost, 9),
+            'spendNanos' => $spend,
+            'costNanos' => $cost,
+            'profitNanos' => $spend - $cost,
         ];
     }
 }

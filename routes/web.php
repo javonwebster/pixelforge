@@ -26,9 +26,10 @@ Route::middleware('auth')->group(function () {
     Route::get('credits', [CreditController::class, 'index'])->name('credits.index');
     Route::post('credits', [CreditController::class, 'store'])->name('credits.store');
 
-    Route::get('admin/report', AdminReportController::class)
-        ->middleware('can:view-admin-report')
-        ->name('admin.report');
+    Route::middleware('can:view-admin-report')->group(function () {
+        Route::get('admin/report', [AdminReportController::class, 'show'])->name('admin.report');
+        Route::get('admin/report/export', [AdminReportController::class, 'export'])->name('admin.report.export');
+    });
 });
 
 require __DIR__.'/settings.php';

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Download } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import AccountEconomicsChart from '@/components/admin/AccountEconomicsChart.vue';
 import HeaderHint from '@/components/admin/HeaderHint.vue';
 import Heading from '@/components/Heading.vue';
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { report as reportRoute } from '@/routes/admin';
+import { exportMethod as exportRoute } from '@/routes/admin/report';
 import type { Report } from '@/types';
 
 const props = defineProps<{
@@ -38,6 +40,11 @@ const hints = {
 };
 
 const page = usePage();
+
+// The range on screen, not the one being typed, so the file matches.
+const exportUrl = computed(
+    () => exportRoute({ query: { from: props.from, to: props.to } }).url,
+);
 const from = ref(props.from);
 const to = ref(props.to);
 
@@ -83,6 +90,12 @@ function matchClass(matches: boolean | null): string {
                 <Input id="to" v-model="to" type="date" class="w-40" />
             </div>
             <Button type="submit">Show</Button>
+            <!-- A plain link: the response is a file, not a page. -->
+            <Button variant="outline" as-child>
+                <a :href="exportUrl" data-test="export-csv">
+                    <Download /> Export CSV
+                </a>
+            </Button>
             <span class="text-xs text-muted-foreground"
                 >Up to {{ maxDays }} days, both ends included.</span
             >
@@ -131,7 +144,9 @@ function matchClass(matches: boolean | null): string {
                 <dt class="text-xs text-muted-foreground">
                     <HeaderHint label="Profit" :hint="hints.profit" />
                 </dt>
-                <dd class="font-semibold break-all tabular-nums">
+                <dd
+                    class="font-semibold break-all text-emerald-600 tabular-nums dark:text-emerald-400"
+                >
                     {{ report.totals.profit }}
                 </dd>
             </div>
@@ -206,7 +221,11 @@ function matchClass(matches: boolean | null): string {
                         <dt class="text-muted-foreground">Provider cost</dt>
                         <dd class="text-right">{{ day.cost }}</dd>
                         <dt class="text-muted-foreground">Profit</dt>
-                        <dd class="text-right">{{ day.profit }}</dd>
+                        <dd
+                            class="text-right text-emerald-600 dark:text-emerald-400"
+                        >
+                            {{ day.profit }}
+                        </dd>
                         <dt class="text-muted-foreground">Pixelforge cost</dt>
                         <dd class="text-right">
                             {{ day.pixelforge?.cost ?? '—' }}
@@ -306,7 +325,9 @@ function matchClass(matches: boolean | null): string {
                                 <td class="px-3 py-2 text-right">
                                     {{ day.cost }}
                                 </td>
-                                <td class="px-3 py-2 text-right">
+                                <td
+                                    class="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400"
+                                >
                                     {{ day.profit }}
                                 </td>
                                 <td class="px-3 py-2 text-right">
@@ -339,7 +360,9 @@ function matchClass(matches: boolean | null): string {
                                 <td class="px-3 py-1.5 text-right">
                                     {{ user.cost }}
                                 </td>
-                                <td class="px-3 py-1.5 text-right">
+                                <td
+                                    class="px-3 py-1.5 text-right text-emerald-600 dark:text-emerald-400"
+                                >
                                     {{ user.profit }}
                                 </td>
                                 <td class="px-3 py-1.5" colspan="2" />

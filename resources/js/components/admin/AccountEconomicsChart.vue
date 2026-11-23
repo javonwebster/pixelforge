@@ -13,10 +13,15 @@ import type { ReportAccount } from '@/types';
  * Cost + profit = spend, so a stacked bar shows all three at once on a
  * single dollar axis.
  *
- * Colours are slots 1 and 2 of the validated categorical palette, checked
- * with the dataviz validator against this app's light (#fff) and dark
- * (#0a0a0a) surfaces: CVD ΔE 24.7 / 26.8, contrast ≥ 3:1. Identity is
- * never colour alone: a legend, the spend label, and hover text.
+ * Every account is listed, including any with nothing billed in the
+ * range (an empty track), so the chart always covers all of them.
+ *
+ * Colours: the palette's blue for cost and its green for profit (green is
+ * profit everywhere on this page), checked with the dataviz validator
+ * against this app's light (#fff) and dark (#0a0a0a) surfaces: CVD ΔE
+ * 26.5 / 27.9, contrast ≥ 3:1. Their tritan separation is lower (7.6 /
+ * 5.1), so identity is never colour alone: a legend, a 2px gap between
+ * segments, the spend label, and hover text.
  */
 const props = defineProps<{ accounts: ReportAccount[] }>();
 
@@ -82,8 +87,11 @@ function share(part: number, whole: number): string {
                     account.name
                 }}</span>
                 <div class="flex items-center gap-2">
-                    <div class="flex h-5 min-w-0 flex-1 items-stretch">
+                    <div
+                        class="flex h-5 min-w-0 flex-1 items-stretch rounded-r bg-muted/40"
+                    >
                         <div
+                            v-if="account.spendNanos > 0"
                             class="flex h-full gap-[2px]"
                             :style="{ width: width(account.spendNanos) }"
                         >
@@ -176,15 +184,15 @@ function share(part: number, whole: number): string {
 </template>
 
 <style>
-/* Light and dark steps of the same two palette slots; the kit puts .dark on
-   <html> for dark mode (system or chosen). */
+/* Light and dark steps of the palette's blue and green; the kit puts .dark
+   on <html> for dark mode (system or chosen). */
 .viz-economics {
     --series-cost: #2a78d6;
-    --series-profit: #eb6834;
+    --series-profit: #008300;
 }
 
 .dark .viz-economics {
     --series-cost: #3987e5;
-    --series-profit: #d95926;
+    --series-profit: #0ca30c;
 }
 </style>

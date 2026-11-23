@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\GenerationStatus;
+use App\Http\Controllers\AdminReportController;
 use App\Models\Generation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,7 +121,8 @@ class AdminReportTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.report'))
             ->assertInertia(fn (Assert $page) => $page
-                ->has('report.accounts', 2)
+                // Bob, Alice, and the admin with nothing billed.
+                ->has('report.accounts', 3)
                 ->where('report.accounts.0.name', 'Bob')
                 ->where('report.accounts.0.generations', 2)
                 ->where('report.accounts.0.spend', '$0.133675000')
@@ -129,7 +131,86 @@ class AdminReportTest extends TestCase
                 ->where('report.accounts.0.spendNanos', 133_675_000)
                 ->where('report.accounts.0.costNanos', 106_940_000)
                 ->where('report.accounts.0.profitNanos', 26_735_000)
-                ->where('report.accounts.1.name', 'Alice'));
+                ->where('report.accounts.1.name', 'Alice')
+                ->where('report.accounts.2.name', 'Admin')
+                ->where('report.accounts.2.spendNanos', 0));
+    }
+
+    public function test_the_chart_covers_every_account_and_follows_the_range(): void
+    {
+        $users = User::factory()->count(6)->sequence(fn ($s) => ['name' => 'User '.($s->index + 1)])->create();
+        $this->billed($users[0], '2026-11-20 10:00:00', 59_060_000, 73_825_000);
+        $this->billed($users[1], '2026-11-22 10:00:00', 47_152_500, 58_940_625);
+        $this->fakeUsage([]);
+
+        // All seven accounts (six users and the admin), whatever they spent.
+        $this->actingAs($this->admin)
+            ->get(route('admin.report'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('report.accounts', 7)
+                ->where('report.accounts.0.name', 'User 1')
+                ->where('report.accounts.1.name', 'User 2'));
+
+        // Only 22 November: User 1's spend falls outside the range.
+        $this->actingAs($this->admin)
+            ->get(route('admin.report', ['from' => '2026-11-22', 'to' => '2026-11-22']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('report.accounts', 7)
+                ->where('report.accounts.0.name', 'User 2')
+                ->where('report.accounts.0.spendNanos', 58_940_625)
+                ->where('report.accounts', fn ($accounts) => collect($accounts)->firstWhere('name', 'User 1')['spendNanos'] === 0));
+    }
+
+    public function test_a_deleted_account_only_appears_if_it_spent_in_the_range(): void
+    {
+        User::factory()->create(['name' => 'Gone quiet'])->delete();
+        $spender = User::factory()->create(['name' => 'Gone spender']);
+        $this->billed($spender, '2026-11-21 10:00:00', 59_060_000, 73_825_000);
+        $spender->delete();
+        $this->fakeUsage([]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.report'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('report.accounts', fn ($accounts) => collect($accounts)->pluck('name')->sort()->values()->all() === ['Admin', 'Gone spender']));
+    }
+
+    public function test_csv_export_has_exact_figures_for_the_range(): void
+    {
+        $alice = User::factory()->create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $this->billed($alice, '2026-11-21 10:00:00', 59_060_000, 73_825_000);
+        $this->fakeUsage(['2026-11-21' => [1, '0.059060000']]);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.report.export', ['from' => '2026-11-20', 'to' => '2026-11-22']));
+
+        $response->assertOk()->assertDownload('pixelforge-report-2026-11-20-to-2026-11-22.csv');
+        $rows = array_map('str_getcsv', array_filter(explode("\n", $response->streamedContent())));
+
+        $this->assertSame(AdminReportController::CSV_COLUMNS, $rows[0]);
+        $this->assertSame(['day', '2026-11-21', '', '', '', '1', '0.073825000', '0.059060000', '0.014765000', '1', '0.059060000', 'true'], $rows[1]);
+        $this->assertSame(['user', '2026-11-21', (string) $alice->id, 'Alice', 'alice@example.com', '1', '0.073825000', '0.059060000', '0.014765000', '', '', ''], $rows[2]);
+        $this->assertSame('account', $rows[3][0]);
+        $this->assertSame('Alice', $rows[3][3]);
+        $this->assertSame(['total', '', '', '', '', '1', '0.073825000', '0.059060000', '0.014765000', '1', '0.059060000', 'true'], end($rows));
+    }
+
+    public function test_csv_cells_cannot_run_as_spreadsheet_formulas(): void
+    {
+        $sneaky = User::factory()->create(['name' => '=HYPERLINK("http://evil.example","click")']);
+        $this->billed($sneaky, '2026-11-21 10:00:00', 59_060_000, 73_825_000);
+        $this->fakeUsage([]);
+
+        $csv = $this->actingAs($this->admin)->get(route('admin.report.export'))->streamedContent();
+
+        $this->assertStringContainsString("'=HYPERLINK", $csv);
+        $this->assertStringNotContainsString(',=HYPERLINK', $csv);
+    }
+
+    public function test_only_admins_can_export(): void
+    {
+        $this->actingAs(User::factory()->create())->get(route('admin.report.export'))->assertForbidden();
+        $this->actingAs($this->admin)->get(route('admin.report.export', ['from' => '2026-11-22', 'to' => '2026-11-20']))->assertSessionHasErrors('from');
     }
 
     public function test_a_cost_belongs_to_the_day_pixelforge_completed_it(): void
