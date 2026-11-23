@@ -10,26 +10,24 @@ use Tests\Concerns\FakesPixelforge;
 use Tests\TestCase;
 
 /**
- * Deleting an account soft-deletes it: the user can't sign in again, but
- * their generations and ledger entries stay, so the admin report still
- * matches what Pixelforge billed.
+ * Users can't delete their own account (the seeded logins are shared, see
+ * SharedAccountSettingsTest), but the model soft-deletes, so an operator
+ * removing a user in tinker keeps the money history: the user can't sign in
+ * again, while their generations and ledger entries stay and the admin
+ * report still matches what Pixelforge billed.
  */
 class AccountDeletionTest extends TestCase
 {
     use FakesPixelforge, RefreshDatabase;
 
-    public function test_a_user_with_money_history_can_delete_their_account(): void
+    public function test_deleting_a_user_with_money_history_keeps_it(): void
     {
         $this->fakePixelforge();
         $user = $this->userWithCredit(5_000_000_000);
         $generation = $this->submitGeneration($user);
 
-        $this->actingAs($user)
-            ->delete(route('profile.destroy'), ['password' => 'password'])
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('home'));
+        $user->delete();
 
-        $this->assertGuest();
         $this->assertSoftDeleted($user);
         $this->assertDatabaseHas('generations', ['id' => $generation->id, 'user_id' => $user->id]);
         $this->assertSame(2, LedgerEntry::query()->where('user_id', $user->id)->count());   // purchase + hold

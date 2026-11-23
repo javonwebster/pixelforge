@@ -1,27 +1,12 @@
 <?php
 
-use App\Http\Controllers\Settings\ProfileController;
-use App\Http\Controllers\Settings\SecurityController;
-use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
 
+// Appearance only. Reviewers share the seeded logins, so nothing here may
+// change an account: no email or password change, no account deletion.
+// One reviewer could otherwise lock the others out.
 Route::middleware(['auth'])->group(function () {
-    Route::redirect('settings', '/settings/profile');
-
-    Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
-});
-
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::delete('settings/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
-    Route::get('settings/security', [SecurityController::class, 'edit'])
-        ->middleware(RequirePassword::class)
-        ->name('security.edit');
-
-    Route::put('settings/password', [SecurityController::class, 'update'])
-        ->middleware('throttle:6,1')
-        ->name('user-password.update');
+    Route::redirect('settings', '/settings/appearance');
 
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
 });
