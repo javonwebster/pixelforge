@@ -4,8 +4,8 @@ import Price from '@/components/generations/Price.vue';
 import { Button } from '@/components/ui/button';
 import type { Balance, Quote } from '@/types';
 
-// The Generate button and, right under it, what it will cost and what you
-// have: "≈ $0.07 · up to $0.09 · Balance $9.19 · Top up".
+// The Generate button and, right under it, what you have and a way to
+// add more: "Balance $9.19 · Top up". The price is in the panel above.
 defineProps<{
     quote: Quote | null;
     balance: Balance;
@@ -37,12 +37,6 @@ defineEmits<{ generate: [] }>();
             class="flex flex-wrap items-center justify-center gap-x-1.5 text-xs text-muted-foreground"
             data-test="price-line"
         >
-            <template v-if="quote">
-                <span>≈ <Price :money="quote.estimate" /></span>
-                <span aria-hidden="true">·</span>
-                <span>up to <Price :money="quote.maximum" /></span>
-                <span aria-hidden="true">·</span>
-            </template>
             <span
                 :class="
                     quote && !quote.enough
