@@ -244,6 +244,42 @@ class GenerationPagesTest extends TestCase
                 ->has('balance.available'));
     }
 
+    public function test_history_searches_prompts(): void
+    {
+        Generation::factory()->for($this->user)->create(['prompt' => 'A lighthouse on a cliff at dusk']);
+        Generation::factory()->for($this->user)->create(['prompt' => 'A red fox in fresh snow']);
+        Generation::factory()->create(['prompt' => 'Someone else\'s lighthouse']);
+
+        $this->actingAs($this->user)
+            ->get(route('generations.index', ['q' => 'LIGHTHOUSE']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('search', 'LIGHTHOUSE')
+                ->has('generations.data', 1)
+                ->where('generations.data.0.prompt', 'A lighthouse on a cliff at dusk'));
+    }
+
+    public function test_search_treats_wildcards_literally(): void
+    {
+        Generation::factory()->for($this->user)->create(['prompt' => 'Poster: 50% off']);
+        Generation::factory()->for($this->user)->create(['prompt' => 'Poster: 50 days']);
+
+        $this->actingAs($this->user)
+            ->get(route('generations.index', ['q' => '50%']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('generations.data', 1)
+                ->where('generations.data.0.prompt', 'Poster: 50% off'));
+    }
+
+    public function test_search_keeps_its_query_in_pagination_links(): void
+    {
+        Generation::factory()->count(15)->for($this->user)->create(['prompt' => 'A cat']);
+
+        $this->actingAs($this->user)
+            ->get(route('generations.index', ['q' => 'cat']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('generations.links.next', fn (string $next) => str_contains($next, 'q=cat')));
+    }
+
     public function test_history_is_paginated(): void
     {
         Generation::factory()->count(15)->for($this->user)->create();

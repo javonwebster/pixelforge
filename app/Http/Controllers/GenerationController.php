@@ -26,25 +26,42 @@ class GenerationController extends Controller
     public const int PER_PAGE = 12;
 
     /**
-     * History: the user's generations, newest first. The page polls with
-     * a partial reload of `generations` and `balance` while anything is
-     * unfinished, so both are closures and only built when asked for.
+     * History: the user's generations, newest first, optionally narrowed by
+     * a search on the prompt (?q=). The page polls with a partial reload of
+     * `generations` and `balance` while anything is unfinished, so both are
+     * closures and only built when asked for; the poll keeps the same URL,
+     * so it stays filtered.
      */
     public function index(Request $request, LedgerService $ledger): Response
     {
         $user = self::user($request);
+        $request->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $search = $request->string('q')->trim()->toString();
 
         return Inertia::render('generations/Index', [
             'generations' => fn () => GenerationResource::collection(
                 $user->generations()
                     ->with(['retryOf:id,created_at', 'retry:id,retry_of_id'])
                     ->withSum('webhookEvents as duplicate_deliveries', 'duplicate_deliveries')
+                    ->when($search !== '', fn ($query) => $query->where(
+                        'prompt',
+                        'ilike',
+                        '%'.self::escapeLike($search).'%',
+                    ))
                     ->latest()
                     ->orderByDesc('id')
                     ->paginate(self::PER_PAGE)
+                    ->withQueryString()
             ),
             'balance' => fn () => self::balance($user, $ledger),
+            'search' => $search,
         ]);
+    }
+
+    /** "50%_off" matches literally, not as LIKE wildcards. */
+    private static function escapeLike(string $value): string
+    {
+        return addcslashes($value, '\\%_');
     }
 
     /**

@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { Head, Link, usePoll } from '@inertiajs/vue3';
-import { Download, ImageOff, RotateCcw } from '@lucide/vue';
-import { computed, onMounted, watch } from 'vue';
+import { Head, Link, router, usePoll } from '@inertiajs/vue3';
+import { Download, ImageOff, RotateCcw, Search, X } from '@lucide/vue';
+import { watchDebounced } from '@vueuse/core';
+import { computed, onMounted, ref, watch } from 'vue';
 import Heading from '@/components/Heading.vue';
 import BalancePanel from '@/components/generations/BalancePanel.vue';
 import Price from '@/components/generations/Price.vue';
 import StatusBadge from '@/components/generations/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { create, index } from '@/routes/generations';
 import type { Balance, Generation, Paginated } from '@/types';
 
 const props = defineProps<{
     generations: Paginated<Generation>;
     balance: Balance;
+    search: string;
 }>();
 
 defineOptions({
@@ -40,6 +43,24 @@ onMounted(() => {
     }
 });
 
+// Search prompts: debounced, kept in the URL (?q=) so the poll, the
+// pagination links and a refresh all stay filtered.
+const query = ref(props.search);
+
+watchDebounced(
+    query,
+    (value) => {
+        const q = value.trim();
+
+        router.get(
+            index({ query: q === '' ? {} : { q } }).url,
+            {},
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    },
+    { debounce: 300 },
+);
+
 function localTime(iso: string): string {
     return new Date(iso).toLocaleString(undefined, {
         dateStyle: 'medium',
@@ -59,14 +80,49 @@ function localTime(iso: string): string {
 
         <BalancePanel :balance="balance" />
 
+        <div class="relative">
+            <Search
+                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+                v-model="query"
+                type="search"
+                placeholder="Search prompts…"
+                aria-label="Search prompts"
+                class="pl-9"
+                data-test="search"
+            />
+            <button
+                v-if="query"
+                type="button"
+                class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+                @click="query = ''"
+            >
+                <X class="size-4" />
+            </button>
+        </div>
+
         <div
             v-if="generations.data.length === 0"
             class="rounded-xl border border-dashed p-10 text-center"
         >
-            <p class="mb-4 text-muted-foreground">No generations yet.</p>
-            <Button as-child
-                ><Link :href="create()">Generate your first image</Link></Button
-            >
+            <template v-if="search">
+                <p class="mb-4 text-muted-foreground">
+                    No prompts match “{{ search }}”.
+                </p>
+                <Button variant="outline" @click="query = ''"
+                    >Clear search</Button
+                >
+            </template>
+            <template v-else>
+                <p class="mb-4 text-muted-foreground">No generations yet.</p>
+                <Button as-child
+                    ><Link :href="create()"
+                        >Generate your first image</Link
+                    ></Button
+                >
+            </template>
         </div>
 
         <ul v-else class="grid gap-4">
