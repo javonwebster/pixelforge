@@ -335,7 +335,6 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
                 <!-- Phones get this in the bar pinned to the bottom instead. -->
                 <GenerateAction
                     class="hidden lg:grid"
-                    :quote="quote"
                     :balance="balance"
                     :disabled="!canSubmit"
                     :label="submitLabel"
@@ -350,7 +349,6 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
             class="sticky bottom-0 z-10 -mx-4 border-t border-sky-400/30 bg-background/95 px-4 py-3 backdrop-blur lg:hidden"
         >
             <GenerateAction
-                :quote="quote"
                 :balance="balance"
                 :disabled="!canSubmit"
                 :label="submitLabel"

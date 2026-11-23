@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import BuyCreditsDialog from '@/components/generations/BuyCreditsDialog.vue';
-import Price from '@/components/generations/Price.vue';
 import { Button } from '@/components/ui/button';
-import type { Balance, Quote } from '@/types';
+import type { Balance } from '@/types';
 
-// The Generate button and, right under it, what you have and a way to
-// add more: "Balance $9.19 · Top up". The price is in the panel above.
+// The Generate button with a "Top up" link under it. The price and the
+// balance are in the panel above.
 defineProps<{
-    quote: Quote | null;
     balance: Balance;
     disabled: boolean;
     label: string;
@@ -33,19 +31,7 @@ defineEmits<{ generate: [] }>();
             >
         </Button>
 
-        <p
-            class="flex flex-wrap items-center justify-center gap-x-1.5 text-xs text-muted-foreground"
-            data-test="price-line"
-        >
-            <span
-                :class="
-                    quote && !quote.enough
-                        ? 'font-medium text-red-600 dark:text-red-400'
-                        : ''
-                "
-                >Balance <Price :money="quote?.available ?? balance.available"
-            /></span>
-            <span aria-hidden="true">·</span>
+        <div class="flex justify-center text-xs">
             <BuyCreditsDialog :balance="balance">
                 <template #trigger>
                     <button
@@ -57,6 +43,6 @@ defineEmits<{ generate: [] }>();
                     </button>
                 </template>
             </BuyCreditsDialog>
-        </p>
+        </div>
     </div>
 </template>
