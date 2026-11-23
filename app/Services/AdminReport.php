@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\GenerationStatus;
-use App\Models\User;
 use App\Services\Pixelforge\PixelforgeApiException;
 use App\Services\Pixelforge\PixelforgeClient;
 use App\Services\Pixelforge\ThrottledLocallyException;
@@ -39,7 +38,6 @@ class AdminReport
     /**
      * @return array{
      *     days: list<array<string, mixed>>,
-     *     accounts: list<array<string, mixed>>,
      *     totals: array<string, mixed>,
      *     pixelforgeError: string|null,
      * }
@@ -58,7 +56,6 @@ class AdminReport
 
         $days = [];
         $totals = ['generations' => 0, 'spend' => 0, 'cost' => 0, 'pixelforgeGenerations' => 0, 'pixelforgeCost' => 0];
-        $accounts = [];
 
         foreach ($dates as $date) {
             $day = $ours[$date] ?? ['generations' => 0, 'spend' => 0, 'cost' => 0, 'users' => []];
@@ -82,13 +79,6 @@ class AdminReport
                 'matches' => $error === null ? $day['cost'] === ($pixelforge['cost'] ?? 0) : null,
             ];
 
-            foreach ($day['users'] as $user) {
-                $accounts[$user['id']] ??= ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'generations' => 0, 'spend' => 0, 'cost' => 0];
-                $accounts[$user['id']]['generations'] += $user['generations'];
-                $accounts[$user['id']]['spend'] += $user['spend'];
-                $accounts[$user['id']]['cost'] += $user['cost'];
-            }
-
             $totals['generations'] += $day['generations'];
             $totals['spend'] += $day['spend'];
             $totals['cost'] += $day['cost'];
@@ -96,24 +86,9 @@ class AdminReport
             $totals['pixelforgeCost'] += $pixelforge['cost'] ?? 0;
         }
 
-        // Every current account appears, even with nothing billed in the
-        // range, so the chart always covers all of them. Deleted accounts
-        // appear only if they had billed generations in the range.
-        foreach (User::query()->orderBy('name')->get(['id', 'name', 'email']) as $user) {
-            $accounts[$user->id] ??= ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'generations' => 0, 'spend' => 0, 'cost' => 0];
-        }
-
-        // Biggest spenders first, for the chart.
-        usort($accounts, fn (array $a, array $b) => $b['spend'] <=> $a['spend'] ?: $a['name'] <=> $b['name']);
-
         return [
             'days' => $days,
-            'accounts' => array_map(fn (array $account) => [
-                'id' => $account['id'],
-                'name' => $account['name'],
-                'email' => $account['email'],
-                ...self::figures($account['generations'], $account['spend'], $account['cost']),
-            ], $accounts),
+            // All accounts together; the chart draws this as one bar.
             'totals' => [
                 ...self::figures($totals['generations'], $totals['spend'], $totals['cost']),
                 'pixelforge' => $error === null ? [
@@ -214,7 +189,7 @@ class AdminReport
     }
 
     /**
-     * Exact display strings, plus raw nanodollars for the chart's bar
+     * Exact display strings, plus raw nanodollars for the chart's segment
      * lengths and the CSV export.
      *
      * @return array{generations: int, spend: string, cost: string, profit: string, spendNanos: int, costNanos: int, profitNanos: int}

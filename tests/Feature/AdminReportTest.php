@@ -109,7 +109,7 @@ class AdminReportTest extends TestCase
             && $request->header('Authorization') === ['Bearer pf_test_key']);
     }
 
-    public function test_totals_per_account_for_the_chart_biggest_spender_first(): void
+    public function test_the_chart_is_one_total_for_all_accounts_in_the_range(): void
     {
         $alice = User::factory()->create(['name' => 'Alice']);
         $bob = User::factory()->create(['name' => 'Bob']);
@@ -118,61 +118,23 @@ class AdminReportTest extends TestCase
         $this->billed($bob, '2026-11-22 10:00:00', 47_152_500, 58_940_625);
         $this->fakeUsage([]);
 
+        // Alice and Bob together; no per-account breakdown.
         $this->actingAs($this->admin)
             ->get(route('admin.report'))
             ->assertInertia(fn (Assert $page) => $page
-                // Bob, Alice, and the admin with nothing billed.
-                ->has('report.accounts', 3)
-                ->where('report.accounts.0.name', 'Bob')
-                ->where('report.accounts.0.generations', 2)
-                ->where('report.accounts.0.spend', '$0.133675000')
-                ->where('report.accounts.0.cost', '$0.106940000')
-                ->where('report.accounts.0.profit', '$0.026735000')
-                ->where('report.accounts.0.spendNanos', 133_675_000)
-                ->where('report.accounts.0.costNanos', 106_940_000)
-                ->where('report.accounts.0.profitNanos', 26_735_000)
-                ->where('report.accounts.1.name', 'Alice')
-                ->where('report.accounts.2.name', 'Admin')
-                ->where('report.accounts.2.spendNanos', 0));
-    }
+                ->missing('report.accounts')
+                ->where('report.totals.generations', 3)
+                ->where('report.totals.spend', '$0.207500000')
+                ->where('report.totals.spendNanos', 207_500_000)
+                ->where('report.totals.costNanos', 166_000_000)
+                ->where('report.totals.profitNanos', 41_500_000));
 
-    public function test_the_chart_covers_every_account_and_follows_the_range(): void
-    {
-        $users = User::factory()->count(6)->sequence(fn ($s) => ['name' => 'User '.($s->index + 1)])->create();
-        $this->billed($users[0], '2026-11-20 10:00:00', 59_060_000, 73_825_000);
-        $this->billed($users[1], '2026-11-22 10:00:00', 47_152_500, 58_940_625);
-        $this->fakeUsage([]);
-
-        // All seven accounts (six users and the admin), whatever they spent.
-        $this->actingAs($this->admin)
-            ->get(route('admin.report'))
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('report.accounts', 7)
-                ->where('report.accounts.0.name', 'User 1')
-                ->where('report.accounts.1.name', 'User 2'));
-
-        // Only 22 November: User 1's spend falls outside the range.
+        // Only 22 November: the other days fall outside the range.
         $this->actingAs($this->admin)
             ->get(route('admin.report', ['from' => '2026-11-22', 'to' => '2026-11-22']))
             ->assertInertia(fn (Assert $page) => $page
-                ->has('report.accounts', 7)
-                ->where('report.accounts.0.name', 'User 2')
-                ->where('report.accounts.0.spendNanos', 58_940_625)
-                ->where('report.accounts', fn ($accounts) => collect($accounts)->firstWhere('name', 'User 1')['spendNanos'] === 0));
-    }
-
-    public function test_a_deleted_account_only_appears_if_it_spent_in_the_range(): void
-    {
-        User::factory()->create(['name' => 'Gone quiet'])->delete();
-        $spender = User::factory()->create(['name' => 'Gone spender']);
-        $this->billed($spender, '2026-11-21 10:00:00', 59_060_000, 73_825_000);
-        $spender->delete();
-        $this->fakeUsage([]);
-
-        $this->actingAs($this->admin)
-            ->get(route('admin.report'))
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('report.accounts', fn ($accounts) => collect($accounts)->pluck('name')->sort()->values()->all() === ['Admin', 'Gone spender']));
+                ->where('report.totals.spendNanos', 58_940_625)
+                ->where('report.totals.costNanos', 47_152_500));
     }
 
     public function test_csv_export_has_exact_figures_for_the_range(): void
@@ -190,8 +152,8 @@ class AdminReportTest extends TestCase
         $this->assertSame(AdminReportController::CSV_COLUMNS, $rows[0]);
         $this->assertSame(['day', '2026-11-21', '', '', '', '1', '0.073825000', '0.059060000', '0.014765000', '1', '0.059060000', 'true'], $rows[1]);
         $this->assertSame(['user', '2026-11-21', (string) $alice->id, 'Alice', 'alice@example.com', '1', '0.073825000', '0.059060000', '0.014765000', '', '', ''], $rows[2]);
-        $this->assertSame('account', $rows[3][0]);
-        $this->assertSame('Alice', $rows[3][3]);
+        // Day, its users, then the total: no per-account rows.
+        $this->assertCount(4, $rows);
         $this->assertSame(['total', '', '', '', '', '1', '0.073825000', '0.059060000', '0.014765000', '1', '0.059060000', 'true'], end($rows));
     }
 

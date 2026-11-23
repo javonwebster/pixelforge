@@ -85,23 +85,20 @@ export type ReportDay = ReportFigures & {
     matches: boolean | null;
 };
 
-export type ReportAccount = ReportFigures & {
-    id: number;
-    name: string;
-    email: string;
-    /** Nanodollars, for bar lengths only. */
+/** The range's figures for all accounts together. */
+export type ReportTotals = ReportFigures & {
+    /** Nanodollars, for the chart's segment lengths only. */
     spendNanos: number;
     costNanos: number;
     profitNanos: number;
+    pixelforge: { generations: number; cost: string } | null;
+    /** null when Pixelforge's usage couldn't be loaded */
+    matches: boolean | null;
 };
 
 export type Report = {
     days: ReportDay[];
-    accounts: ReportAccount[];
-    totals: ReportFigures & {
-        pixelforge: { generations: number; cost: string } | null;
-        matches: boolean | null;
-    };
+    totals: ReportTotals;
     pixelforgeError: string | null;
 };
 

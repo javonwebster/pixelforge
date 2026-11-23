@@ -2,7 +2,7 @@
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { Download } from '@lucide/vue';
 import { computed, ref } from 'vue';
-import AccountEconomicsChart from '@/components/admin/AccountEconomicsChart.vue';
+import EconomicsChart from '@/components/admin/EconomicsChart.vue';
 import HeaderHint from '@/components/admin/HeaderHint.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
@@ -174,10 +174,7 @@ function matchClass(matches: boolean | null): string {
             </div>
         </dl>
 
-        <AccountEconomicsChart
-            v-if="report.accounts.length"
-            :accounts="report.accounts"
-        />
+        <EconomicsChart :totals="report.totals" />
 
         <p
             v-if="report.days.length === 0"

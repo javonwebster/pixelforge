@@ -40,8 +40,9 @@ class AdminReportController extends Controller
     /**
      * The same report as rows for a spreadsheet. Amounts are exact USD
      * strings with nine decimals (no "$"), so they sum without rounding.
-     * row_type says what each row is: a `day`, a `user` within that day, an
-     * `account` total for the range, or the range `total`.
+     * The rows follow the report on screen: each `day` (newest first) with
+     * a `user` row under it for every account billed that day, then one
+     * `total` row for all accounts over the range.
      */
     public function export(Request $request, AdminReport $report): StreamedResponse
     {
@@ -63,10 +64,6 @@ class AdminReportController extends Controller
                 foreach ($day['users'] as $user) {
                     fputcsv($out, self::row('user', $day['date'], $user, $user), escape: '');
                 }
-            }
-
-            foreach ($data['accounts'] as $account) {
-                fputcsv($out, self::row('account', '', $account, $account), escape: '');
             }
 
             $totals = $data['totals'];
