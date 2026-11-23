@@ -40,11 +40,15 @@ class CreditController extends Controller
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
             'min' => ['nullable', 'string', 'regex:'.self::AMOUNT_PATTERN],
             'max' => ['nullable', 'string', 'regex:'.self::AMOUNT_PATTERN],
+            // The viewer's time zone, sent by the page. The table shows local
+            // times, so "22 Nov" means the viewer's 22 Nov, not UTC's.
+            'tz' => ['nullable', 'string', 'timezone:all'],
         ]);
 
+        $tz = $validated['tz'] ?? 'UTC';
         $filters = [
-            'from' => isset($validated['from']) ? CarbonImmutable::createFromFormat('!Y-m-d', $validated['from'], 'UTC') : null,
-            'to' => isset($validated['to']) ? CarbonImmutable::createFromFormat('!Y-m-d', $validated['to'], 'UTC') : null,
+            'from' => isset($validated['from']) ? CarbonImmutable::createFromFormat('!Y-m-d', $validated['from'], $tz) : null,
+            'to' => isset($validated['to']) ? CarbonImmutable::createFromFormat('!Y-m-d', $validated['to'], $tz) : null,
             'min' => isset($validated['min']) ? Nanodollars::fromUsd($validated['min']) : null,
             'max' => isset($validated['max']) ? Nanodollars::fromUsd($validated['max']) : null,
         ];

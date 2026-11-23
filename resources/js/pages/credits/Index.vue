@@ -43,11 +43,19 @@ const form = ref({
     max: props.filters.max ?? '',
 });
 
+// Dates are the viewer's local days, like the times in the table, so the
+// server is told which time zone they're in.
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 function apply(): void {
     // Only send the filters that are set.
-    const query = Object.fromEntries(
+    const query: Record<string, string> = Object.fromEntries(
         Object.entries(form.value).filter(([, value]) => value !== ''),
     );
+
+    if ((query.from || query.to) && timeZone) {
+        query.tz = timeZone;
+    }
 
     router.get(creditsIndex({ query }).url, {}, { preserveScroll: true });
 }
@@ -80,7 +88,9 @@ function amountClass(row: LedgerRow): string {
 const firstError = computed(() => {
     const errors = page.props.errors as Record<string, string> | undefined;
 
-    return errors?.from ?? errors?.to ?? errors?.min ?? errors?.max;
+    return (
+        errors?.from ?? errors?.to ?? errors?.min ?? errors?.max ?? errors?.tz
+    );
 });
 </script>
 
@@ -112,11 +122,11 @@ const firstError = computed(() => {
             @submit.prevent="apply"
         >
             <div class="grid gap-1">
-                <Label for="from">From (UTC)</Label>
+                <Label for="from">From</Label>
                 <Input id="from" v-model="form.from" type="date" class="w-40" />
             </div>
             <div class="grid gap-1">
-                <Label for="to">To (UTC)</Label>
+                <Label for="to">To</Label>
                 <Input id="to" v-model="form.to" type="date" class="w-40" />
             </div>
             <div class="grid gap-1">

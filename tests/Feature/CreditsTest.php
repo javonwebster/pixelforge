@@ -7,6 +7,7 @@ use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Services\GenerationUpdater;
 use App\Services\LedgerService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -101,18 +102,24 @@ class CreditsTest extends TestCase
                 ->where('entries.data.0.label', 'Charged for a generation')
                 ->where('entries.data.0.prompt', 'A lighthouse on a cliff at dusk')
                 ->where('entries.data.0.generationId', $generation->id)
-                ->where('entries.data.0.amount.display', '-$0.07')
+                // Four decimals on this page, so the arithmetic shows.
+                ->where('entries.data.0.amount.display', '-$0.0738')
                 ->where('entries.data.0.amount.exact', '-$0.073825000')
+                ->where('entries.data.0.balanceAfter.display', '$4.9262')
                 ->where('entries.data.0.balanceAfter.exact', '$4.926175000')
                 ->where('entries.data.1.type', 'release')
-                ->where('entries.data.1.amount.display', '+$0.09')
+                ->where('entries.data.1.amount.display', '+$0.0863')
+                ->where('entries.data.1.balanceAfter.display', '$5.0000')
                 ->where('entries.data.1.balanceAfter.exact', '$5.000000000')
                 ->where('entries.data.2.type', 'hold')
                 // $5 minus the 31-character prompt's maximum of $0.0863125.
+                ->where('entries.data.2.amount.display', '-$0.0863')
+                ->where('entries.data.2.balanceAfter.display', '$4.9137')
                 ->where('entries.data.2.balanceAfter.exact', '$4.913687500')
                 ->where('entries.data.3.type', 'purchase')
                 ->where('entries.data.3.label', 'Credits purchased')
-                ->where('entries.data.3.amount.display', '+$5.00')
+                ->where('entries.data.3.amount.display', '+$5.0000')
+                ->where('entries.data.3.balanceAfter.display', '$5.0000')
                 ->where('entries.data.3.prompt', null)
                 ->where('balance.available.exact', '$4.926175000'));
     }
@@ -144,6 +151,36 @@ class CreditsTest extends TestCase
                 // $5 + $10 + $20, though only the last row is shown.
                 ->where('entries.data.0.balanceAfter.exact', '$35.000000000')
                 ->where('filters.from', '2026-11-22'));
+    }
+
+    public function test_date_filters_use_the_viewers_local_day(): void
+    {
+        // 8:39 PM on 22 Nov in Barbados (UTC-4) is 00:39 on 23 Nov in UTC.
+        $user = $this->userWithCredit(0);
+        $this->travelTo(CarbonImmutable::parse('2026-11-23 00:39:00', 'UTC'));
+        app(LedgerService::class)->purchase($user, 5_000_000_000);
+
+        $local = ['from' => '2026-11-22', 'to' => '2026-11-22', 'tz' => 'America/Barbados'];
+        $this->actingAs($user)
+            ->get(route('credits.index', $local))
+            ->assertInertia(fn (Assert $page) => $page->has('entries.data', 1));
+
+        // The next local day doesn't include it.
+        $this->actingAs($user)
+            ->get(route('credits.index', [...$local, 'from' => '2026-11-23', 'to' => '2026-11-23']))
+            ->assertInertia(fn (Assert $page) => $page->has('entries.data', 0));
+
+        // Without a time zone, days are UTC days.
+        $this->actingAs($user)
+            ->get(route('credits.index', ['from' => '2026-11-23', 'to' => '2026-11-23']))
+            ->assertInertia(fn (Assert $page) => $page->has('entries.data', 1));
+    }
+
+    public function test_an_unknown_time_zone_is_refused(): void
+    {
+        $this->actingAs($this->user)
+            ->get(route('credits.index', ['from' => '2026-11-22', 'tz' => 'Mars/Olympus']))
+            ->assertSessionHasErrors('tz');
     }
 
     public function test_filters_by_absolute_amount(): void

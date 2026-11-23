@@ -26,8 +26,17 @@ class LedgerHistory
     public const int PER_PAGE = 25;
 
     /**
-     * Dates are UTC days, both inclusive; min and max compare the absolute
-     * amount, in nanodollars.
+     * Amounts and balances show 4 decimals here, not whole cents like the
+     * rest of the app: this page exists to show the arithmetic, and charges
+     * are fractions of a cent ($0.0738), so whole cents wouldn't add up.
+     * The exact 9-decimal figure stays on hover.
+     */
+    public const int DISPLAY_DECIMALS = 4;
+
+    /**
+     * Dates are days in their own time zone (the viewer's), both inclusive,
+     * turned into UTC bounds here; min and max compare the absolute amount,
+     * in nanodollars.
      *
      * @param  array{from?: CarbonImmutable|null, to?: CarbonImmutable|null, min?: int|null, max?: int|null}  $filters
      * @return LengthAwarePaginator<int|string, Entry>
@@ -46,10 +55,12 @@ class LedgerHistory
             ->orderByDesc('entries.id');
 
         if (($from = $filters['from'] ?? null) !== null) {
-            $query->where('entries.created_at', '>=', $from->startOfDay());
+            // created_at is stored in UTC, and a bound is written out in its
+            // own zone, so convert before comparing.
+            $query->where('entries.created_at', '>=', $from->startOfDay()->utc());
         }
         if (($to = $filters['to'] ?? null) !== null) {
-            $query->where('entries.created_at', '<', $to->addDay()->startOfDay());
+            $query->where('entries.created_at', '<', $to->addDay()->startOfDay()->utc());
         }
         if (($min = $filters['min'] ?? null) !== null) {
             $query->whereRaw('ABS(entries.amount_nanos) >= ?', [$min]);
@@ -71,11 +82,14 @@ class LedgerHistory
                 'prompt' => $row->prompt === null ? null : Str::limit($row->prompt, 70),
                 'amount' => [
                     ...Nanodollars::present($amount),
-                    // "+$5.00" / "-$0.07": the sign is the point of a ledger.
-                    'display' => ($amount > 0 ? '+' : '').Nanodollars::format($amount),
+                    // "+$5.0000" / "-$0.0738": the sign is the point of a ledger.
+                    'display' => ($amount > 0 ? '+' : '').Nanodollars::format($amount, self::DISPLAY_DECIMALS),
                 ],
-                // SUM(bigint) comes back from Postgres as numeric, a string.
-                'balanceAfter' => Nanodollars::present((int) $row->balance_after_nanos),
+                'balanceAfter' => [
+                    // SUM(bigint) comes back from Postgres as numeric, a string.
+                    ...Nanodollars::present($balance = (int) $row->balance_after_nanos),
+                    'display' => Nanodollars::format($balance, self::DISPLAY_DECIMALS),
+                ],
                 'createdAt' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
             ];
         });
