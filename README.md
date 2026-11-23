@@ -49,7 +49,7 @@ The docs' own maximum example (high, 1536×1024, 400 characters, 2 reference ima
 - **Unique (`generation_id`, `type`)** is the database-level guarantee that a generation is held, released and charged at most once each. A check constraint enforces each type's sign.
 - **Submitting** locks the user's row (`SELECT … FOR UPDATE`), checks the available balance against the maximum, then writes the generation and its hold in one transaction. Two simultaneous submits can't both pass the check; a test forks two processes to prove it.
 - **Failed generations are free** because no `charge` row is ever written for them.
-- **Users can read the ledger.** The Credits page lists every entry newest first ("Credits purchased", "Held for a generation", "Hold returned", "Charged for a generation") with the generation it belongs to and the balance after it, filterable by date and amount. The running balance is a window sum over the whole ledger, so it stays true on a filtered page.
+- **Users can read the ledger.** The Credits page lists every entry newest first ("Credits purchased", "Held for a generation", "Hold returned", "Charged for a generation") with the generation it belongs to and the balance after it, filterable by date and amount. The running balance is a window sum over the whole ledger, so it stays true on a filtered page. History has a prompt search, and the Generate button sits beside the estimate, maximum and balance, with ⌘/Ctrl+Enter as a shortcut.
 - **Buying credits** (fake: no payment) offers $5, $10, $20 or $50, or any amount from $1 to $500, parsed as an exact decimal string, never a float.
 
 ---
@@ -113,7 +113,7 @@ The job gives up after 5 minutes. If the last answer was a clean refusal, nothin
 
 **Rate limits.** Pixelforge allows 60 requests a minute per account, across all keys. A shared sliding-window throttle (in the cache, under a lock) stops at 55, leaving room for the local key, and pauses when Pixelforge's `X-RateLimit-Remaining` reaches 0.
 
-**Admin report** ([`/admin/report`](app/Services/AdminReport.php), admins only). For each UTC day and user: generations, credit spend, provider cost and profit, exact to nine decimals. Pixelforge's own `GET /v1/usage` cost sits beside ours, with a match marker per day and for the range. Generations count on the UTC day of Pixelforge's `completed_at`, which is how `/v1/usage` bills, so one submitted at 23:59 and finished at 00:01 lands on the second day. Days only Pixelforge billed still show, as mismatches. Up to 92 days per range, Pixelforge's limit; usage is cached for a minute because the call counts against the rate limit. A stacked bar per account shows provider cost and profit (together, credit spend), and every column explains itself on hover or tap.
+**Admin report** ([`/admin/report`](app/Services/AdminReport.php), admins only). For each UTC day and user: generations, credit spend, provider cost and profit, exact to nine decimals. Pixelforge's own `GET /v1/usage` cost sits beside ours, with a match marker per day and for the range. Generations count on the UTC day of Pixelforge's `completed_at`, which is how `/v1/usage` bills, so one submitted at 23:59 and finished at 00:01 lands on the second day. Days only Pixelforge billed still show, as mismatches. Up to 92 days per range, Pixelforge's limit; usage is cached for a minute because the call counts against the rate limit. A stacked bar for every account shows provider cost and profit (together, credit spend) for the selected range, every column explains itself on hover or tap, and the same range downloads as CSV with exact nine-decimal figures (text cells are guarded against spreadsheet formula injection).
 
 **Image copies** ([`ProcessGeneratedImage`](app/Jobs/ProcessGeneratedImage.php)). Pixelforge's image links stop working 24 hours after completion, so after a success commits, a queue job downloads the PNG (only from Pixelforge's host), converts it with ffmpeg to a full-size WebP and a 384px thumbnail, and stores both in a private S3 bucket (`us-east-2`). History and downloads then use our copy through 10-minute signed links, cached for 8 minutes so the 3-second poll doesn't re-download images. The job never touches money, is unique per generation, and retries on failure; reconcile re-queues any succeeded generation still missing a copy while its link is valid. Without a bucket configured (local development), the same disk is a private local folder.
 
@@ -155,7 +155,7 @@ vendor/bin/pint --test && vendor/bin/phpstan analyse
 npm run check && npm run types:check
 ```
 
-296 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
+304 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
 
 - **Pricing:** the docs' maximum example exactly; the worked examples; half-up rounding through a synthetic rate; an inexact rate throws; Unicode prompts count characters, not bytes.
 - **Webhooks:** valid, wrong secret, tampered body, missing header, stale or future timestamp; the same event twice (one charge); a throw while applying (no event row, so the redelivery is applied); `processing` after `succeeded`; a webhook before the submit response; `internal_error` retried once, never twice, and not by a late duplicate.
