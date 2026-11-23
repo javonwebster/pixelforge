@@ -259,7 +259,35 @@ class SubmitGenerationTest extends TestCase
 
         $this->assertSame(GenerationStatus::Rejected, $this->fresh()->status);
         $this->assertSame('overloaded', $this->fresh()->error_code);
+        $this->assertFalse($this->fresh()->outcome_unknown);
         $this->assertSame(self::START, $this->balance());
+    }
+
+    public function test_a_timeout_followed_only_by_clean_refusals_is_still_a_submission_failure(): void
+    {
+        // The first attempt timed out, so Pixelforge may have created it;
+        // every later attempt heard a clean 503 or 429. The last answer
+        // alone would say "created nothing" and close the row for good.
+        $this->given(Http::sequence()
+            ->pushFailedConnection()
+            ->pushResponse($this->error(503, 'overloaded', ['Retry-After' => '2']))
+            ->pushResponse($this->error(429, 'rate_limit_exceeded', ['Retry-After' => '3'])));
+
+        $this->runJob();
+        $this->assertTrue($this->fresh()->outcome_unknown);
+
+        $this->runJob();
+        $this->runJob();
+        $this->assertSame('rate_limit_exceeded', $this->fresh()->last_submit_error);
+        $this->assertTrue($this->fresh()->outcome_unknown, 'Later clean answers never clear it.');
+
+        (new SubmitGeneration($this->generation->id))->failed(new MaxAttemptsExceededException);
+
+        $fresh = $this->fresh();
+        $this->assertSame(GenerationStatus::SubmissionFailed, $fresh->status);   // reconcile keeps looking
+        $this->assertSame(0, $fresh->charge_nanos);
+        $this->assertSame(self::START, $this->balance());
+        $this->assertSame(3, $this->generationRequests());
     }
 
     public function test_a_local_wait_never_hides_an_earlier_timeout(): void
@@ -321,5 +349,7 @@ class SubmitGenerationTest extends TestCase
         $this->runJob()->assertReleased(delay: 2);
 
         $this->assertSame('unexpected_response', $this->fresh()->last_submit_error);
+        // A proxy's 502 doesn't say whether Pixelforge got the request.
+        $this->assertTrue($this->fresh()->outcome_unknown);
     }
 }

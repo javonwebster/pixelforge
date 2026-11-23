@@ -42,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string|null $error_code
  * @property string|null $error_message
  * @property string|null $last_submit_error
+ * @property bool $outcome_unknown
  * @property string|null $image_url
  * @property CarbonImmutable|null $image_url_expires_at
  * @property string|null $stored_image_path
@@ -71,6 +72,7 @@ class Generation extends Model
             'size' => Size::class,
             'quality' => Quality::class,
             'reference_images' => 'array',
+            'outcome_unknown' => 'boolean',
             'rates' => 'array',
             'estimated_price_nanos' => 'integer',
             'max_price_nanos' => 'integer',

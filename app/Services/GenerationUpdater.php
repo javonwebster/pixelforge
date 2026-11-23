@@ -89,6 +89,11 @@ class GenerationUpdater
      * Pixelforge's answers always replace the last error. Our own waits
      * (local throttle, local in-flight count) only fill an empty one, so
      * they never hide an earlier timeout whose outcome is still unknown.
+     *
+     * Anything but a clean refusal (a timeout, no connection, an answer we
+     * don't recognise) also sets `outcome_unknown`, which nothing clears:
+     * Pixelforge may have the generation even if every later attempt is a
+     * clean 503 or 429.
      */
     public function recordSubmitError(Generation $generation, PixelforgeErrorCode $code, bool $fromPixelforge = true): void
     {
@@ -96,7 +101,10 @@ class GenerationUpdater
             ->whereKey($generation->id)
             ->where('status', GenerationStatus::Pending)
             ->when(! $fromPixelforge, fn ($query) => $query->whereNull('last_submit_error'))
-            ->update(['last_submit_error' => $code->value]);
+            ->update([
+                'last_submit_error' => $code->value,
+                ...($code->createdNothing() ? [] : ['outcome_unknown' => true]),
+            ]);
     }
 
     /**

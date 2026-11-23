@@ -28,10 +28,11 @@ use Throwable;
  * | 422, 401 (our bug or config)         | rejected, hold released, logged      |
  * | 409 idempotency_key_reused           | submission_failed: it EXISTS there   |
  *
- * Gives up after 5 minutes (PIXELFORGE_SUBMIT_GIVE_UP_MINUTES). If the
- * last answer was a clean refusal, Pixelforge created nothing and the row
- * is `rejected`. Otherwise (timeout, no response) it may exist, so the row
- * is `submission_failed` and reconcile keeps looking for it.
+ * Gives up after 5 minutes (PIXELFORGE_SUBMIT_GIVE_UP_MINUTES). If every
+ * answer was a clean refusal, Pixelforge created nothing and the row is
+ * `rejected`. If any attempt had no clean answer (timeout, no response;
+ * `outcome_unknown`), it may exist, so the row is `submission_failed` and
+ * reconcile keeps looking for it, even if the last answers were 503s.
  *
  * The worker runs with --tries=0: retryUntil() alone decides when to stop.
  */
@@ -111,7 +112,9 @@ class SubmitGeneration implements ShouldQueue
         $last = PixelforgeErrorCode::tryFrom((string) $generation->last_submit_error);
         $message = 'Gave up after the retry window. Last error: '.($last->value ?? 'none').'.';
 
-        if ($last?->createdNothing()) {
+        // A clean last answer isn't enough: an earlier timeout may have
+        // created it, and later attempts would only have heard 503 or 429.
+        if ($last?->createdNothing() && ! $generation->outcome_unknown) {
             $updater->reject($generation, $last, $message);
         } else {
             $updater->markSubmissionFailed($generation, $last ?? PixelforgeErrorCode::ConnectionError, $message);
