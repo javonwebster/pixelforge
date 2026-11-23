@@ -187,9 +187,9 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
 
         <BalancePanel :balance="balance" />
 
-        <!-- The composer: one card, lightly lit in a baby-blue accent. -->
+        <!-- The composer: one card with a faint baby-blue tint. -->
         <section
-            class="grid gap-6 rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-300/[0.07] to-transparent p-4 shadow-[0_0_48px_-24px] shadow-sky-300/50 sm:p-6 lg:grid-cols-[1fr_20rem]"
+            class="grid gap-6 rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-300/[0.07] to-transparent p-4 sm:p-6 lg:grid-cols-[1fr_20rem]"
             aria-label="Compose a generation"
         >
             <form class="flex flex-col gap-6" @submit.prevent="submit">
