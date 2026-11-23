@@ -187,9 +187,9 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
 
         <BalancePanel :balance="balance" />
 
-        <!-- The composer: one card, lightly lit in the accent colour. -->
+        <!-- The composer: one card, lightly lit in a baby-blue accent. -->
         <section
-            class="grid gap-6 rounded-2xl border border-lime-500/25 bg-gradient-to-b from-lime-400/[0.06] to-transparent p-4 shadow-[0_0_48px_-24px] shadow-lime-400/50 sm:p-6 lg:grid-cols-[1fr_20rem]"
+            class="grid gap-6 rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-300/[0.07] to-transparent p-4 shadow-[0_0_48px_-24px] shadow-sky-300/50 sm:p-6 lg:grid-cols-[1fr_20rem]"
             aria-label="Compose a generation"
         >
             <form class="flex flex-col gap-6" @submit.prevent="submit">
@@ -274,7 +274,7 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
             </form>
 
             <aside
-                class="flex h-fit flex-col gap-4 rounded-xl border border-lime-500/20 bg-background/70 p-4 lg:sticky lg:top-4"
+                class="flex h-fit flex-col gap-4 rounded-xl border border-sky-400/25 bg-background/70 p-4 lg:sticky lg:top-4"
                 aria-label="Price"
                 aria-live="polite"
             >
@@ -347,7 +347,7 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
 
         <!-- Phones: price, balance and Generate always in reach. -->
         <div
-            class="sticky bottom-0 z-10 -mx-4 border-t border-lime-500/25 bg-background/95 px-4 py-3 backdrop-blur lg:hidden"
+            class="sticky bottom-0 z-10 -mx-4 border-t border-sky-400/30 bg-background/95 px-4 py-3 backdrop-blur lg:hidden"
         >
             <GenerateAction
                 :quote="quote"

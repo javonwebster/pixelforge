@@ -20,7 +20,7 @@ defineEmits<{ generate: [] }>();
 <template>
     <div class="grid gap-2">
         <Button
-            class="h-11 bg-lime-400 font-semibold tracking-wide text-lime-950 uppercase shadow-[0_0_24px_-6px] shadow-lime-400/70 hover:bg-lime-300 disabled:shadow-none"
+            class="h-11 bg-sky-300 font-semibold tracking-wide text-sky-950 uppercase shadow-[0_0_24px_-6px] shadow-sky-300/70 hover:bg-sky-200 disabled:shadow-none"
             :disabled="disabled"
             data-test="generate"
             @click="$emit('generate')"
@@ -28,7 +28,7 @@ defineEmits<{ generate: [] }>();
             {{ label }}
             <!-- Keyboard hint: only where there's likely a keyboard. -->
             <kbd
-                class="hidden rounded border border-lime-950/20 bg-lime-950/10 px-1.5 py-0.5 text-[0.65rem] font-medium tracking-normal normal-case lg:inline"
+                class="hidden rounded border border-sky-950/20 bg-sky-950/10 px-1.5 py-0.5 text-[0.65rem] font-medium tracking-normal normal-case lg:inline"
                 >{{ shortcut }}</kbd
             >
         </Button>
@@ -56,7 +56,7 @@ defineEmits<{ generate: [] }>();
                 <template #trigger>
                     <button
                         type="button"
-                        class="font-medium text-lime-700 underline underline-offset-2 hover:text-lime-600 dark:text-lime-400 dark:hover:text-lime-300"
+                        class="font-medium text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200"
                         data-test="top-up"
                     >
                         Top up
