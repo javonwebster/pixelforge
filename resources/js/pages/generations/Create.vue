@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { Head, useForm, useHttp } from '@inertiajs/vue3';
 import { Plus } from '@lucide/vue';
-import { watchDebounced } from '@vueuse/core';
+import { useEventListener, watchDebounced } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import GenerationController from '@/actions/App/Http/Controllers/GenerationController';
 import QuoteController from '@/actions/App/Http/Controllers/QuoteController';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import BalancePanel from '@/components/generations/BalancePanel.vue';
+import GenerateAction from '@/components/generations/GenerateAction.vue';
 import OptionGroup from '@/components/generations/OptionGroup.vue';
 import Price from '@/components/generations/Price.vue';
 import ReferenceImageInput from '@/components/generations/ReferenceImageInput.vue';
@@ -144,11 +145,35 @@ const submitLabel = computed(() =>
 );
 
 function submit(): void {
+    if (!canSubmit.value) {
+        return;
+    }
+
     form.transform((data) => ({
         ...data,
         reference_images: filledReferenceImages.value,
     })).submit(GenerationController.store());
 }
+
+// ⌘↵ on a Mac, Ctrl+↵ elsewhere, from anywhere on the page (but not while
+// the Buy credits dialog is open).
+const isMac =
+    typeof navigator !== 'undefined' &&
+    /Mac|iPhone|iPad/.test(navigator.userAgent);
+const shortcut = isMac ? '⌘↵' : 'Ctrl ↵';
+
+useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+    if (
+        event.key !== 'Enter' ||
+        !(event.metaKey || event.ctrlKey) ||
+        document.querySelector('[role="dialog"]')
+    ) {
+        return;
+    }
+
+    event.preventDefault();
+    submit();
+});
 </script>
 
 <template>
@@ -162,7 +187,11 @@ function submit(): void {
 
         <BalancePanel :balance="balance" />
 
-        <div class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+        <!-- The composer: one card, lightly lit in the accent colour. -->
+        <section
+            class="grid gap-6 rounded-2xl border border-lime-500/25 bg-gradient-to-b from-lime-400/[0.06] to-transparent p-4 shadow-[0_0_48px_-24px] shadow-lime-400/50 sm:p-6 lg:grid-cols-[1fr_20rem]"
+            aria-label="Compose a generation"
+        >
             <form class="flex flex-col gap-6" @submit.prevent="submit">
                 <div class="grid gap-2">
                     <div class="flex items-end justify-between gap-4">
@@ -245,7 +274,7 @@ function submit(): void {
             </form>
 
             <aside
-                class="flex h-fit flex-col gap-4 rounded-xl border p-4 lg:sticky lg:top-4"
+                class="flex h-fit flex-col gap-4 rounded-xl border border-lime-500/20 bg-background/70 p-4 lg:sticky lg:top-4"
                 aria-label="Price"
                 aria-live="polite"
             >
@@ -303,14 +332,31 @@ function submit(): void {
                 </p>
                 <InputError :message="errorFor('balance')" />
 
-                <Button
+                <!-- Phones get this in the bar pinned to the bottom instead. -->
+                <GenerateAction
+                    class="hidden lg:grid"
+                    :quote="quote"
+                    :balance="balance"
                     :disabled="!canSubmit"
-                    data-test="generate"
-                    @click="submit"
-                >
-                    {{ submitLabel }}
-                </Button>
+                    :label="submitLabel"
+                    :shortcut="shortcut"
+                    @generate="submit"
+                />
             </aside>
+        </section>
+
+        <!-- Phones: price, balance and Generate always in reach. -->
+        <div
+            class="sticky bottom-0 z-10 -mx-4 border-t border-lime-500/25 bg-background/95 px-4 py-3 backdrop-blur lg:hidden"
+        >
+            <GenerateAction
+                :quote="quote"
+                :balance="balance"
+                :disabled="!canSubmit"
+                :label="submitLabel"
+                :shortcut="shortcut"
+                @generate="submit"
+            />
         </div>
     </div>
 </template>

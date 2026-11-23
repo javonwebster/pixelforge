@@ -68,9 +68,12 @@ function buy(): void {
 <template>
     <Dialog v-model:open="open">
         <DialogTrigger as-child>
-            <Button size="sm" data-test="open-buy-credits">
-                <Plus /> Buy credits
-            </Button>
+            <!-- Callers can swap the trigger, e.g. a "Top up" link. -->
+            <slot name="trigger">
+                <Button size="sm" data-test="open-buy-credits">
+                    <Plus /> Buy credits
+                </Button>
+            </slot>
         </DialogTrigger>
 
         <DialogContent class="sm:max-w-md">
