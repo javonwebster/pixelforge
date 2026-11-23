@@ -28,25 +28,39 @@ const open = ref(false);
 const form = useForm({ amount: '10' });
 
 const cents = computed(() => parseDollars(form.amount));
+// The same checks and wording as CreditController::store, shown as you
+// type, so an amount the server would refuse never gets as far as Buy.
+const amountError = computed((): string | null => {
+    if (form.amount.trim() === '') {
+        return null;
+    }
+
+    if (cents.value === null) {
+        return 'Enter an amount in dollars, like 25 or 12.50.';
+    }
+
+    if (cents.value < MIN_CENTS || cents.value > MAX_CENTS) {
+        return 'Choose between $1 and $500.';
+    }
+
+    return null;
+});
 const valid = computed(
-    () =>
-        cents.value !== null &&
-        cents.value >= MIN_CENTS &&
-        cents.value <= MAX_CENTS,
+    () => cents.value !== null && amountError.value === null,
 );
+// Only a valid amount is previewed: "$600.00" would read as allowed.
+const credit = computed(() => (valid.value ? cents.value : null));
 const after = computed(() =>
-    cents.value === null
+    credit.value === null
         ? null
-        : nanosToCents(props.balance.available.nanos) + cents.value,
+        : nanosToCents(props.balance.available.nanos) + credit.value,
 );
 const buyLabel = computed(() => {
     if (form.processing) {
         return 'Adding…';
     }
 
-    return valid.value && cents.value !== null
-        ? `Buy ${formatCents(cents.value)}`
-        : 'Buy';
+    return credit.value !== null ? `Buy ${formatCents(credit.value)}` : 'Buy';
 });
 
 function buy(): void {
@@ -129,11 +143,22 @@ function buy(): void {
                         inputmode="decimal"
                         autocomplete="off"
                         placeholder="25.00"
+                        :aria-invalid="amountError !== null"
+                        :aria-describedby="
+                            amountError || form.errors.amount
+                                ? 'credit-amount-error'
+                                : 'credit-amount-help'
+                        "
                         data-test="custom-amount"
                     />
-                    <InputError :message="form.errors.amount" />
+                    <InputError
+                        id="credit-amount-error"
+                        :message="amountError ?? form.errors.amount"
+                        data-test="amount-error"
+                    />
                     <p
-                        v-if="form.amount && !valid"
+                        v-if="!amountError && !form.errors.amount"
+                        id="credit-amount-help"
                         class="text-xs text-muted-foreground"
                     >
                         Between $1 and $500, like 25 or 12.50.
@@ -144,7 +169,7 @@ function buy(): void {
                     <div class="flex justify-between">
                         <dt class="text-muted-foreground">Credit</dt>
                         <dd class="font-medium tabular-nums">
-                            {{ cents !== null ? formatCents(cents) : '—' }}
+                            {{ credit !== null ? formatCents(credit) : '—' }}
                         </dd>
                     </div>
                     <div class="flex justify-between">
