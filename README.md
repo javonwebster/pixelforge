@@ -94,7 +94,7 @@ A status applies only if its rank is higher than the current one, and nothing ch
 | `422`, `401`                            | `rejected`, hold released, logged as a bug                                                                      | Failed, $0                   |
 | `409`                                   | `submission_failed`, logged as critical                                                                         | Failed, $0                   |
 
-The job gives up after 5 minutes. If the last answer was a clean refusal, nothing exists at Pixelforge and the row is `rejected`; after a timeout it's `submission_failed`, and reconcile keeps looking for it for 24 hours.
+The job gives up after 5 minutes. If every answer was a clean refusal, nothing exists at Pixelforge and the row is `rejected`. If any attempt timed out or got an answer we don't recognise, the row's sticky `outcome_unknown` flag is set and it ends `submission_failed`, even when the later answers were clean 503s or 429s, and reconcile keeps looking for it for 24 hours.
 
 **Webhooks** ([`PixelforgeWebhookController`](app/Http/Controllers/PixelforgeWebhookController.php)):
 
@@ -155,7 +155,7 @@ vendor/bin/pint --test && vendor/bin/phpstan analyse
 npm run check && npm run types:check
 ```
 
-300 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
+301 tests. Every money rule and every Pixelforge failure mode has one, using `Http::fake()` and signed fake webhooks:
 
 - **Pricing:** the docs' maximum example exactly; the worked examples; half-up rounding through a synthetic rate; an inexact rate throws; Unicode prompts count characters, not bytes.
 - **Webhooks:** valid, wrong secret, tampered body, missing header, stale or future timestamp; the same event twice (one charge); a throw while applying (no event row, so the redelivery is applied); `processing` after `succeeded`; a webhook before the submit response; `internal_error` retried once, never twice, and not by a late duplicate.
